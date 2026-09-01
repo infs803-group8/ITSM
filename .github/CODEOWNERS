@@ -1,15 +1,43 @@
-# Replace placeholders with real GitHub usernames before enabling required review.
-# /backend/app/domains/platform/        @member-a
-# /backend/app/domains/attachments/     @member-a
-# /backend/app/domains/dashboard/       @member-a
-# /infrastructure/                      @member-a
-# /backend/app/domains/auth/            @member-b
-# /backend/app/domains/users/           @member-b
-# /backend/app/domains/tickets/         @member-b
-# /backend/app/domains/comments/        @member-b
-# /backend/app/domains/assignment/      @member-c
-# /backend/app/domains/workflow/        @member-c
-# /backend/app/domains/vendor_workflow/ @member-c
-# /backend/app/domains/audit/           @member-c
-# /backend/app/domains/sla/             @member-c
-# /frontend/                            @member-d
+# INFS803 Group 8 code ownership
+# Member A: BIN-LIN-AUT2026
+# Member B: Nicole-Gao2026
+# Member C: andywen-aut
+# Member D: Yiguang-Sun
+
+# Shared backend contracts and application wiring require a backend owner.
+/backend/app/api/                     @BIN-LIN-AUT2026 @Nicole-Gao2026 @andywen-aut
+/backend/app/core/                    @BIN-LIN-AUT2026 @Nicole-Gao2026 @andywen-aut
+/backend/app/common/                  @BIN-LIN-AUT2026 @Nicole-Gao2026 @andywen-aut
+/backend/app/contracts/               @BIN-LIN-AUT2026 @Nicole-Gao2026 @andywen-aut
+/backend/app/db/                      @BIN-LIN-AUT2026 @Nicole-Gao2026 @andywen-aut
+
+# Member A — platform, attachments, dashboard, AWS, Docker, and CI/CD.
+/backend/app/domains/platform/        @BIN-LIN-AUT2026
+/backend/app/domains/attachments/     @BIN-LIN-AUT2026
+/backend/app/domains/dashboard/       @BIN-LIN-AUT2026
+/infrastructure/                      @BIN-LIN-AUT2026
+/.github/                             @BIN-LIN-AUT2026 @andywen-aut
+/docker-compose.local.yml             @BIN-LIN-AUT2026
+
+# Member B — authentication, users, reference data, tickets, comments, and database coordination.
+/backend/app/domains/auth/            @Nicole-Gao2026
+/backend/app/domains/users/           @Nicole-Gao2026
+/backend/app/domains/reference_data/  @Nicole-Gao2026
+/backend/app/domains/tickets/         @Nicole-Gao2026
+/backend/app/domains/comments/        @Nicole-Gao2026
+/backend/database/                    @Nicole-Gao2026 @BIN-LIN-AUT2026 @andywen-aut
+
+# Member C — assignment, workflow, vendor, audit, SLA, PM, and Trello backlog.
+/backend/app/domains/assignment/      @andywen-aut
+/backend/app/domains/workflow/        @andywen-aut
+/backend/app/domains/vendor_workflow/ @andywen-aut
+/backend/app/domains/audit/           @andywen-aut
+/backend/app/domains/sla/             @andywen-aut
+/docs/project-management/             @andywen-aut
+
+# Member D — React frontend and frontend tests.
+/frontend/                            @Yiguang-Sun
+
+# Contracts consumed by the whole team.
+/docs/api/                            @BIN-LIN-AUT2026 @Nicole-Gao2026 @andywen-aut @Yiguang-Sun
+/docs/database/                       @BIN-LIN-AUT2026 @Nicole-Gao2026 @andywen-aut
