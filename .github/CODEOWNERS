@@ -1,0 +1,15 @@
+# Replace placeholders with real GitHub usernames before enabling required review.
+# /backend/app/domains/platform/        @member-a
+# /backend/app/domains/attachments/     @member-a
+# /backend/app/domains/dashboard/       @member-a
+# /infrastructure/                      @member-a
+# /backend/app/domains/auth/            @member-b
+# /backend/app/domains/users/           @member-b
+# /backend/app/domains/tickets/         @member-b
+# /backend/app/domains/comments/        @member-b
+# /backend/app/domains/assignment/      @member-c
+# /backend/app/domains/workflow/        @member-c
+# /backend/app/domains/vendor_workflow/ @member-c
+# /backend/app/domains/audit/           @member-c
+# /backend/app/domains/sla/             @member-c
+# /frontend/                            @member-d

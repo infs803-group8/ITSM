@@ -1,0 +1,1 @@
+-- Generated only after schema freeze.

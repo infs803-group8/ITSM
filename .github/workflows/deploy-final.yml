@@ -1,0 +1,24 @@
+name: Deploy Final Environment
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type DEPLOY to continue
+        required: true
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  deploy:
+    if: github.event.inputs.confirm == 'DEPLOY'
+    runs-on: ubuntu-latest
+    environment: final
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Deploy backend and frontend
+        shell: pwsh
+        run: ./infrastructure/scripts/deploy-final.ps1 -CommitSha "${{ github.sha }}"

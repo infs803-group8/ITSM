@@ -1,0 +1,38 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: service_desk
+      MYSQL_USER: itsm_app
+      MYSQL_PASSWORD: local_only_password
+      MYSQL_ROOT_PASSWORD: local_root_password
+    ports: ["3306:3306"]
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./backend/database/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-plocal_root_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ./backend
+    env_file: [./backend/.env]
+    environment:
+      DATABASE_URL: mysql+pymysql://itsm_app:local_only_password@mysql:3306/service_desk
+    ports: ["8000:8000"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      target: development
+    env_file: [./frontend/.env]
+    ports: ["5173:5173"]
+    depends_on: [backend]
+
+volumes:
+  mysql-data:

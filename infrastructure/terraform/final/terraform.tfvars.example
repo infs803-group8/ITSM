@@ -1,0 +1,6 @@
+aws_region     = "ap-southeast-2"
+project_name   = "infs803-group8-itsm"
+database_name  = "service_desk"
+backend_image  = "ACCOUNT_ID.dkr.ecr.ap-southeast-2.amazonaws.com/infs803-group8-itsm-backend:COMMIT_SHA"
+frontend_image = "ACCOUNT_ID.dkr.ecr.ap-southeast-2.amazonaws.com/infs803-group8-itsm-frontend:COMMIT_SHA"
+budget_email   = "replace-with-team-email@example.com"

@@ -1,0 +1,6 @@
+-r requirements.txt
+pytest>=8.3,<9
+httpx>=0.28,<1
+ruff>=0.9,<1
+PyYAML>=6,<7
+openapi-spec-validator>=0.7,<1

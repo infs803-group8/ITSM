@@ -1,0 +1,14 @@
+:root {
+  font-family: Inter, system-ui, sans-serif;
+  color: #172033;
+  background: #f5f7fb;
+}
+body { margin: 0; }
+.shell {
+  max-width: 960px;
+  margin: 4rem auto;
+  padding: 2rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgb(23 32 51 / 8%);
+}
