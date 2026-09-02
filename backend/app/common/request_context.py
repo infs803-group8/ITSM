@@ -7,3 +7,4 @@ from dataclasses import dataclass
 class RequestContext:
     user_id: int
     role: str
+    vendor_org_id: int | None = None

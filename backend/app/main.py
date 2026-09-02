@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.exception_handlers import register_exception_handlers
+from app.api.request_id import add_request_id
 from app.api.router import api_router
 from app.core.config import get_settings
 
@@ -18,6 +19,7 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
     )
     register_exception_handlers(application)
+    application.middleware("http")(add_request_id)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=[origin.strip() for origin in settings.cors_origins.split(",")],

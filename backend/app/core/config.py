@@ -14,9 +14,12 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     aws_region: str = "ap-southeast-2"
     s3_bucket_name: str = ""
+    s3_key_prefix: str = "development"
+    s3_endpoint_url: str | None = None
     jwt_secret: str = "replace-this-in-local-env"
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 60
+    release_version: str = "local"
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

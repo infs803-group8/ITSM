@@ -4,9 +4,47 @@ from enum import StrEnum
 
 
 class UserRole(StrEnum):
-    END_USER = "END_USER"
-    SERVICE_DESK = "SERVICE_DESK"
-    TIER_2 = "TIER_2"
-    VENDOR = "VENDOR"
-    MANAGER = "MANAGER"
-    ADMIN = "ADMIN"
+    USER = "USER"
+    ENGINEER_TIER1 = "ENGINEER_TIER1"
+    ENGINEER_TIER2 = "ENGINEER_TIER2"
+    EXTERNAL_VENDOR = "EXTERNAL_VENDOR"
+    SERVICE_DESK_MANAGER = "SERVICE_DESK_MANAGER"
+
+
+class AttachmentVisibility(StrEnum):
+    USER_VISIBLE = "USER_VISIBLE"
+    INTERNAL_ONLY = "INTERNAL_ONLY"
+    VENDOR_SHARED = "VENDOR_SHARED"
+
+
+class AttachmentUploadStatus(StrEnum):
+    PENDING = "PENDING"
+    COMPLETED = "COMPLETED"
+    EXPIRED = "EXPIRED"
+    ABORTED = "ABORTED"
+
+
+class Category(StrEnum):
+    NETWORK = "NETWORK"
+    HARDWARE = "HARDWARE"
+    SOFTWARE = "SOFTWARE"
+    ACCOUNT = "ACCOUNT"
+    OTHER = "OTHER"
+
+
+class Priority(StrEnum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    URGENT = "URGENT"
+
+
+class TicketStatus(StrEnum):
+    UNASSIGNED = "UNASSIGNED"
+    ASSIGNED = "ASSIGNED"
+    IN_PROGRESS = "IN_PROGRESS"
+    PENDING_USER = "PENDING_USER"
+    PENDING_VENDOR = "PENDING_VENDOR"
+    RESOLVED = "RESOLVED"
+    REOPENED = "REOPENED"
+    CLOSED = "CLOSED"
