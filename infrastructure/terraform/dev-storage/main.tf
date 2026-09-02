@@ -27,6 +27,17 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "development_attac
   }
 }
 
+resource "aws_s3_bucket_cors_configuration" "development_attachments" {
+  bucket = aws_s3_bucket.development_attachments.id
+  cors_rule {
+    allowed_headers = ["content-type"]
+    allowed_methods = ["GET", "HEAD", "PUT"]
+    allowed_origins = var.attachment_cors_allowed_origins
+    expose_headers  = ["ETag"]
+    max_age_seconds = 300
+  }
+}
+
 resource "aws_s3_bucket_lifecycle_configuration" "development_attachments" {
   bucket = aws_s3_bucket.development_attachments.id
   rule {

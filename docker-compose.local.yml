@@ -16,23 +16,5 @@ services:
       timeout: 5s
       retries: 20
 
-  backend:
-    build: ./backend
-    env_file: [./backend/.env]
-    environment:
-      DATABASE_URL: mysql+pymysql://itsm_app:local_only_password@mysql:3306/service_desk
-    ports: ["8000:8000"]
-    depends_on:
-      mysql:
-        condition: service_healthy
-
-  frontend:
-    build:
-      context: ./frontend
-      target: development
-    env_file: [./frontend/.env]
-    ports: ["5173:5173"]
-    depends_on: [backend]
-
 volumes:
   mysql-data:
