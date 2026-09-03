@@ -135,7 +135,7 @@ def test_presign_creates_persistent_pending_session():
     )
     assert repository.upload.status == "PENDING"
     assert repository.upload.creator_id == 1
-    assert repository.upload.object_key.startswith("development/pending/10/")
+    assert repository.upload.object_key.startswith("attachments/pending/10/")
     assert "router.log" not in repository.upload.object_key
     assert response.data.signed_headers == {"Content-Type": "text/plain"}
     assert session.commits == 1

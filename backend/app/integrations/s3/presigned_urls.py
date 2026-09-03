@@ -1,7 +1,7 @@
 """Private S3 operations used by the attachment service."""
 
 from typing import Protocol
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit, urlunsplit
 
 from botocore.exceptions import BotoCoreError, ClientError
 
@@ -39,6 +39,20 @@ class S3ObjectStorage:
         if not settings.s3_bucket_name:
             raise ObjectStorageError("S3_BUCKET_NAME is not configured")
         self.bucket = settings.s3_bucket_name
+        self.public_host = None
+        if settings.s3_public_base_url:
+            public_url = urlsplit(settings.s3_public_base_url)
+            if (
+                public_url.scheme != "https"
+                or not public_url.hostname
+                or public_url.username is not None
+                or public_url.password is not None
+                or public_url.path not in {"", "/"}
+                or public_url.query
+                or public_url.fragment
+            ):
+                raise ObjectStorageError("S3_PUBLIC_BASE_URL must be an HTTPS origin")
+            self.public_host = public_url.netloc
         try:
             self.client = get_s3_client()
         except (BotoCoreError, ClientError) as exc:
@@ -48,7 +62,7 @@ class S3ObjectStorage:
         self, *, object_key: str, content_type: str, expires_in: int
     ) -> str:
         try:
-            return self.client.generate_presigned_url(
+            signed_url = self.client.generate_presigned_url(
                 "put_object",
                 Params={
                     "Bucket": self.bucket,
@@ -58,6 +72,7 @@ class S3ObjectStorage:
                 ExpiresIn=expires_in,
                 HttpMethod="PUT",
             )
+            return self._browser_url(signed_url)
         except (BotoCoreError, ClientError) as exc:
             raise ObjectStorageError from exc
 
@@ -86,7 +101,7 @@ class S3ObjectStorage:
         expires_in: int,
     ) -> str:
         try:
-            return self.client.generate_presigned_url(
+            signed_url = self.client.generate_presigned_url(
                 "get_object",
                 Params={
                     "Bucket": self.bucket,
@@ -99,8 +114,17 @@ class S3ObjectStorage:
                 ExpiresIn=expires_in,
                 HttpMethod="GET",
             )
+            return self._browser_url(signed_url)
         except (BotoCoreError, ClientError) as exc:
             raise ObjectStorageError from exc
+
+    def _browser_url(self, signed_url: str) -> str:
+        if not self.public_host:
+            return signed_url
+        # CloudFront forwards the exact path/query and restores the S3 origin Host.
+        # It must have caching disabled and must not replace the viewer signature.
+        signed = urlsplit(signed_url)
+        return urlunsplit(("https", self.public_host, signed.path, signed.query, ""))
 
     def delete_object(self, *, object_key: str) -> None:
         try:

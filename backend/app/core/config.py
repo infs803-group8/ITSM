@@ -14,8 +14,9 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     aws_region: str = "ap-southeast-2"
     s3_bucket_name: str = ""
-    s3_key_prefix: str = "development"
+    s3_key_prefix: str = "attachments"
     s3_endpoint_url: str | None = None
+    s3_public_base_url: str | None = None
     jwt_secret: str = "replace-this-in-local-env"
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 60
