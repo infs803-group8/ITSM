@@ -1,4 +1,9 @@
-"""SQLAlchemy mappings for the two Member A attachment tables."""
+"""SQLAlchemy mappings for the two Member A attachment tables.
+
+Cross-domain foreign keys are enforced by ``backend/database/schema.sql`` rather
+than repeated here.  This keeps Member A's mapper usable before Members B and C
+register their User, Ticket, VendorOrganisation and VendorRequest ORM models.
+"""
 
 from datetime import datetime
 
@@ -29,12 +34,10 @@ class AttachmentUpload(Base):
     )
     ticket_id: Mapped[int] = mapped_column(
         BIGINT(unsigned=True),
-        ForeignKey("tickets.ticket_id", name="fk_attachment_uploads_ticket"),
         nullable=False,
     )
     creator_id: Mapped[int] = mapped_column(
         BIGINT(unsigned=True),
-        ForeignKey("users.user_id", name="fk_attachment_uploads_creator"),
         nullable=False,
     )
     object_key: Mapped[str] = mapped_column(
@@ -48,18 +51,10 @@ class AttachmentUpload(Base):
     visibility: Mapped[str] = mapped_column(String(32), nullable=False)
     vendor_request_id: Mapped[int | None] = mapped_column(
         BIGINT(unsigned=True),
-        ForeignKey(
-            "vendor_requests.vendor_request_id",
-            name="fk_attachment_uploads_vendor_request",
-        ),
         nullable=True,
     )
     vendor_org_id: Mapped[int | None] = mapped_column(
         BIGINT(unsigned=True),
-        ForeignKey(
-            "vendor_organisations.vendor_org_id",
-            name="fk_attachment_uploads_vendor_org",
-        ),
         nullable=True,
     )
     status: Mapped[str] = mapped_column(
@@ -117,12 +112,10 @@ class Attachment(Base):
     )
     ticket_id: Mapped[int] = mapped_column(
         BIGINT(unsigned=True),
-        ForeignKey("tickets.ticket_id", name="fk_attachments_ticket"),
         nullable=False,
     )
     creator_id: Mapped[int] = mapped_column(
         BIGINT(unsigned=True),
-        ForeignKey("users.user_id", name="fk_attachments_creator"),
         nullable=False,
     )
     object_key: Mapped[str] = mapped_column(
@@ -136,15 +129,9 @@ class Attachment(Base):
     visibility: Mapped[str] = mapped_column(String(32), nullable=False)
     vendor_request_id: Mapped[int | None] = mapped_column(
         BIGINT(unsigned=True),
-        ForeignKey(
-            "vendor_requests.vendor_request_id", name="fk_attachments_vendor_request"
-        ),
     )
     vendor_org_id: Mapped[int | None] = mapped_column(
         BIGINT(unsigned=True),
-        ForeignKey(
-            "vendor_organisations.vendor_org_id", name="fk_attachments_vendor_org"
-        ),
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False),
