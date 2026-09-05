@@ -12,21 +12,11 @@ resource "aws_cloudfront_cache_policy" "frontend" {
   }
 }
 
-resource "aws_cloudfront_cache_policy" "api_disabled" {
-  name        = "${local.name}-api-disabled"
-  default_ttl = 0
-  max_ttl     = 0
-  min_ttl     = 0
-  parameters_in_cache_key_and_forwarded_to_origin {
-    enable_accept_encoding_brotli = true
-    enable_accept_encoding_gzip   = true
-    cookies_config { cookie_behavior = "all" }
-    headers_config {
-      header_behavior = "whitelist"
-      headers { items = ["Authorization", "Content-Type", "Origin"] }
-    }
-    query_strings_config { query_string_behavior = "all" }
-  }
+data "aws_cloudfront_cache_policy" "api_disabled" {
+  name = "Managed-CachingDisabled"
+}
+data "aws_cloudfront_origin_request_policy" "api" {
+  name = "Managed-AllViewerExceptHostHeader"
 }
 
 resource "aws_cloudfront_distribution" "main" {
@@ -56,12 +46,13 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   ordered_cache_behavior {
-    path_pattern           = "/api/*"
-    target_origin_id       = "alb"
-    viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
-    cached_methods         = ["GET", "HEAD"]
-    cache_policy_id        = aws_cloudfront_cache_policy.api_disabled.id
+    path_pattern             = "/api/*"
+    target_origin_id         = "alb"
+    viewer_protocol_policy   = "redirect-to-https"
+    allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods           = ["GET", "HEAD"]
+    cache_policy_id          = data.aws_cloudfront_cache_policy.api_disabled.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.api.id
   }
 
   restrictions {

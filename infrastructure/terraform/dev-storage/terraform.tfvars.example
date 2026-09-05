@@ -1,4 +1,8 @@
 aws_region             = "ap-southeast-2"
-bucket_name            = "replace-with-globally-unique-infs803-group8-dev"
+bucket_name            = "infs803-group8-dev-attachments-256329410824"
 object_expiration_days = 30
-attachment_cors_allowed_origins = ["http://localhost:5173"]
+attachment_cors_allowed_origins = [
+  "http://localhost:5173", "http://127.0.0.1:5173",
+  "https://infs803-group8.com", "https://www.infs803-group8.com"
+  # Add the final frontend CloudFront origin after provisioning.
+]

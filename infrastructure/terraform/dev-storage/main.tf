@@ -42,8 +42,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "development_attachments" {
   bucket = aws_s3_bucket.development_attachments.id
   rule {
     id     = "expire-development-objects"
-    status = "Enabled"
-    filter { prefix = "" }
+    status = "Disabled"
+    filter { prefix = "development/" }
     expiration { days = var.object_expiration_days }
   }
 }

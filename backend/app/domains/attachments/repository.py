@@ -229,11 +229,15 @@ class AttachmentRepository:
             },
         ).scalar_one_or_none() is not None
 
-    def get_cleanup_candidates(self, now: datetime, limit: int) -> list[AttachmentUpload]:
+    def get_cleanup_candidates(
+        self, now: datetime, limit: int, *, after_upload_id: str = ""
+    ) -> list[AttachmentUpload]:
         return list(
             self.database.execute(
                 select(AttachmentUpload)
                 .where(
+                    AttachmentUpload.upload_id > after_upload_id,
+                    AttachmentUpload.created_at <= now,
                     (
                         (AttachmentUpload.status == AttachmentUploadStatus.PENDING.value)
                         & (AttachmentUpload.expires_at <= now)
@@ -245,7 +249,7 @@ class AttachmentRepository:
                         ]
                     )
                 )
-                .order_by(AttachmentUpload.updated_at, AttachmentUpload.upload_id)
+                .order_by(AttachmentUpload.upload_id)
                 .limit(limit)
             ).scalars()
         )
