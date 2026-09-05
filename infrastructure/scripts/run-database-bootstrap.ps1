@@ -1,3 +1,4 @@
-param([Parameter(Mandatory = $true)][string]$Cluster)
+param([Parameter(Mandatory = $true)][string]$CommitSha, [string]$ConfigPath = $env:DEPLOY_CONFIG_PATH)
 $ErrorActionPreference = "Stop"
-Write-Host "TODO: run the reviewed one-off database bootstrap task in cluster $Cluster."
+& python "$PSScriptRoot/deploy.py" --component bootstrap --commit $CommitSha --config $ConfigPath
+if ($LASTEXITCODE -ne 0) { throw "Database bootstrap failed ($LASTEXITCODE)." }

@@ -4,7 +4,8 @@ variable "aws_region" {
 }
 variable "bucket_name" {
   type        = string
-  description = "Globally unique development attachment bucket name."
+  description = "Existing shared attachment bucket name; import before applying this stack."
+  default     = "infs803-group8-dev-attachments-256329410824"
 }
 variable "object_expiration_days" {
   type    = number
@@ -13,5 +14,8 @@ variable "object_expiration_days" {
 variable "attachment_cors_allowed_origins" {
   type        = list(string)
   description = "Browser origins allowed to use presigned attachment URLs."
-  default     = ["http://localhost:5173"]
+  default = [
+    "http://localhost:5173", "http://127.0.0.1:5173",
+    "https://infs803-group8.com", "https://www.infs803-group8.com"
+  ]
 }

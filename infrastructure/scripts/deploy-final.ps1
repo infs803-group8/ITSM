@@ -1,4 +1,4 @@
-param([Parameter(Mandatory = $true)][string]$CommitSha)
+param([Parameter(Mandatory = $true)][string]$CommitSha, [string]$ConfigPath = $env:DEPLOY_CONFIG_PATH)
 $ErrorActionPreference = "Stop"
-& $PSScriptRoot\deploy-backend.ps1 -CommitSha $CommitSha
-& $PSScriptRoot\deploy-frontend.ps1 -CommitSha $CommitSha
+& python "$PSScriptRoot/deploy.py" --component all --commit $CommitSha --config $ConfigPath
+if ($LASTEXITCODE -ne 0) { throw "Final deployment failed ($LASTEXITCODE)." }

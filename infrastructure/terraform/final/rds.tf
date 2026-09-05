@@ -4,7 +4,7 @@ resource "aws_db_subnet_group" "main" {
 }
 resource "random_password" "database" {
   length  = 24
-  special = true
+  special = false
 }
 resource "random_password" "cloudfront_origin_header" {
   length  = 32

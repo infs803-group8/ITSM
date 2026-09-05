@@ -12,8 +12,10 @@ import jwt
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.domains.attachments.cleanup_job import AttachmentCleanupService
 from app.domains.attachments.router import get_object_storage
 from app.integrations.s3.object_verification import ObjectInfo
 from app.main import app
@@ -29,6 +31,7 @@ class FakeStorage:
 
     def __init__(self) -> None:
         self.head_calls = 0
+        self.deleted = []
 
     def create_upload_url(self, *, object_key, content_type, expires_in):
         return f"https://storage.test/{object_key}?upload=1"
@@ -37,13 +40,11 @@ class FakeStorage:
         self.head_calls += 1
         return ObjectInfo(size_bytes=100, content_type="text/plain")
 
-    def create_download_url(
-        self, *, object_key, file_name, content_type, expires_in
-    ):
+    def create_download_url(self, *, object_key, file_name, content_type, expires_in):
         return f"https://storage.test/{object_key}?download=1"
 
     def delete_object(self, *, object_key):
-        return None
+        self.deleted.append(object_key)
 
 
 def _seed_database(engine) -> None:
@@ -128,9 +129,7 @@ def _seed_database(engine) -> None:
                 """
             ),
             {
-                "deadline_iso": (now - timedelta(hours=24)).strftime(
-                    "%Y-%m-%dT%H:%M:%S.%fZ"
-                ),
+                "deadline_iso": (now - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
                 "deadline": now - timedelta(hours=24),
             },
         )
@@ -179,9 +178,7 @@ def test_member_a_api_01_through_07_with_real_mysql():
                 "API-02",
             )
             upload_id = presign["data"]["upload_id"]
-            assert presign["data"]["signed_headers"] == {
-                "Content-Type": "text/plain"
-            }
+            assert presign["data"]["signed_headers"] == {"Content-Type": "text/plain"}
 
             completed = _expect(
                 client.post(
@@ -205,9 +202,7 @@ def test_member_a_api_01_through_07_with_real_mysql():
             assert repeated["data"]["attachment_id"] == attachment_id
 
             listed = _expect(
-                client.get(
-                    "/api/v1/tickets/5001/attachments", headers=auth(1003)
-                ),
+                client.get("/api/v1/tickets/5001/attachments", headers=auth(1003)),
                 200,
                 "API-04",
             )
@@ -222,9 +217,7 @@ def test_member_a_api_01_through_07_with_real_mysql():
                 200,
                 "API-05",
             )
-            assert download["data"]["download_url"].startswith(
-                "https://storage.test/"
-            )
+            assert download["data"]["download_url"].startswith("https://storage.test/")
 
             summary = _expect(
                 client.get("/api/v1/dashboard/summary", headers=auth(1003)),
@@ -280,22 +273,17 @@ def test_member_a_api_01_through_07_with_real_mysql():
                 "API-03 vendor",
             )
             vendor_list = _expect(
-                client.get(
-                    "/api/v1/tickets/5002/attachments", headers=auth(1005)
-                ),
+                client.get("/api/v1/tickets/5002/attachments", headers=auth(1005)),
                 200,
                 "API-04 vendor scope",
             )
             assert vendor_list["meta"]["total"] == 1
             assert (
-                vendor_list["data"][0]["attachment_id"]
-                == vendor_complete["data"]["attachment_id"]
+                vendor_list["data"][0]["attachment_id"] == vendor_complete["data"]["attachment_id"]
             )
 
             hidden = _expect(
-                client.get(
-                    "/api/v1/tickets/5002/attachments", headers=auth(1002)
-                ),
+                client.get("/api/v1/tickets/5002/attachments", headers=auth(1002)),
                 404,
                 "Tier 1 hidden scope",
             )
@@ -309,23 +297,57 @@ def test_member_a_api_01_through_07_with_real_mysql():
             assert manager["data"]["scope"] == "GLOBAL"
 
         with engine.connect() as connection:
-            counts = connection.execute(
-                text(
-                    """
+            counts = (
+                connection.execute(
+                    text(
+                        """
                     SELECT
                       (SELECT COUNT(*) FROM attachment_uploads) AS uploads,
                       (SELECT COUNT(*) FROM attachments) AS attachments,
                       (SELECT COUNT(*) FROM ticket_events
                        WHERE event_type='ATTACHMENT_ADDED') AS attachment_events
                     """
+                    )
                 )
-            ).mappings().one()
+                .mappings()
+                .one()
+            )
             assert dict(counts) == {
                 "uploads": 2,
                 "attachments": 2,
                 "attachment_events": 2,
             }
         assert storage.head_calls == 2
+        # Real MySQL regression: terminal rows must not starve the 201st object.
+        from uuid import uuid4
+
+        now = datetime.now(UTC).replace(tzinfo=None)
+        uploads = [
+            {
+                "id": str(uuid4()),
+                "key": f"review/cleanup/{index}",
+                "now": now,
+                "expired": now - timedelta(hours=1),
+            }
+            for index in range(201)
+        ]
+        with engine.begin() as connection:
+            connection.execute(
+                text("""
+                INSERT INTO attachment_uploads
+                  (upload_id,ticket_id,creator_id,object_key,file_name,expected_content_type,
+                   expected_size,visibility,status,expires_at,expired_at,created_at,updated_at)
+                VALUES (:id,5001,1003,:key,'cleanup.log','text/plain',100,
+                        'INTERNAL_ONLY','EXPIRED',:expired,:expired,:now,:now)
+                """),
+                uploads,
+            )
+        with Session(engine, expire_on_commit=False) as database:
+            cleanup = AttachmentCleanupService(database, storage)
+            assert cleanup.run_once() == (0, 201)
+            assert set(storage.deleted) == {upload["key"] for upload in uploads}
+            assert cleanup.run_once() == (0, 201)
+            assert database.execute(text("SELECT COUNT(*) FROM attachments")).scalar_one() == 2
     finally:
         app.dependency_overrides.clear()
         engine.dispose()

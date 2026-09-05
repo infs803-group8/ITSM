@@ -5,6 +5,14 @@ on:
       confirm:
         description: Type DEPLOY to continue
         required: true
+      component:
+        description: Release target (bootstrap is a separate, one-off database task)
+        type: choice
+        options: [all, backend, frontend, bootstrap]
+        default: all
+concurrency:
+  group: deploy-final
+  cancel-in-progress: false
 permissions:
   id-token: write
   contents: read
@@ -13,12 +21,29 @@ jobs:
     if: github.event.inputs.confirm == 'DEPLOY'
     runs-on: ubuntu-latest
     environment: final
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements-dev.txt
+      - name: Validate code before release
+        run: |
+          python -m pytest backend/tests/unit backend/tests/contract infrastructure/tests --rootdir=backend
+        env:
+          PYTHONPATH: backend
+      - name: Load Terraform deployment resource IDs
+        env:
+          DEPLOYMENT_CONFIG_JSON: ${{ vars.DEPLOYMENT_CONFIG_JSON }}
+        run: |
+          python -c 'import json, os, pathlib; config=json.loads(os.environ["DEPLOYMENT_CONFIG_JSON"]); pathlib.Path(os.environ["RUNNER_TEMP"], "deployment.json").write_text(json.dumps(config))'
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
-      - name: Deploy backend and frontend
-        shell: pwsh
-        run: ./infrastructure/scripts/deploy-final.ps1 -CommitSha "${{ github.sha }}"
+      - name: Publish immutable images and deploy
+        env:
+          DEPLOY_CONFIG_PATH: ${{ runner.temp }}/deployment.json
+          RELEASE_COMPONENT: ${{ inputs.component }}
+        run: python infrastructure/scripts/deploy.py --commit "$GITHUB_SHA" --component "$RELEASE_COMPONENT"

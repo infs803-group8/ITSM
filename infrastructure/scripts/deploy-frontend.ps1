@@ -1,3 +1,4 @@
-param([Parameter(Mandatory = $true)][string]$CommitSha)
+param([Parameter(Mandatory = $true)][string]$CommitSha, [string]$ConfigPath = $env:DEPLOY_CONFIG_PATH)
 $ErrorActionPreference = "Stop"
-Write-Host "TODO: build frontend:$CommitSha, push ECR, register task definition, update frontend ECS only."
+& python "$PSScriptRoot/deploy.py" --component frontend --commit $CommitSha --config $ConfigPath
+if ($LASTEXITCODE -ne 0) { throw "Frontend deployment failed ($LASTEXITCODE)." }

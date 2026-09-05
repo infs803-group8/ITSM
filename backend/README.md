@@ -41,6 +41,21 @@ signature with OAC signing. The bucket remains private; unsigned reads are denie
 Server-side HEAD and delete calls continue to use S3 directly.
 
 The current shared bucket, CloudFront distribution, ACM certificate and Cloudflare
-DNS were configured through their consoles. Reconcile and import these resources
-before applying the existing Terraform configurations, which still describe the
-earlier development/final separation.
+DNS were configured through their consoles. Final Terraform now consumes the
+existing bucket. Import the bucket into `dev-storage` before using that stack
+to manage its settings; its old expiration rule remains disabled.
+
+## MySQL regression verification
+
+With local MySQL running, set `ITSM_TEST_ADMIN_URL` to your local administrative
+MySQL connection URL and run `python scripts/run_mysql_integration.py`.
+The runner creates `service_desk_member_a_test` only if absent, initializes the
+canonical SQL and executes the full suite, then drops only the schema it created.
+It never resets `service_desk`. S3 remains mocked during these tests.
+
+The regression covers all seven Member A APIs and 201 orphan uploads spanning
+multiple cleanup pages. Cleanup uses a stable upload-ID cursor, rechecks each
+locked session and retries eligible terminal sessions on subsequent runs.
+Repeated S3 DELETE calls are intentional: failed deletes and late PUT completions
+must remain retryable. No schema change or automatic expiry of completed objects
+is required.

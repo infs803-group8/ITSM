@@ -9,5 +9,20 @@ resource "aws_secretsmanager_secret_version" "database" {
     host     = aws_db_instance.mysql.address
     port     = aws_db_instance.mysql.port
     database = var.database_name
+    database_url = format("mysql+pymysql://%s:%s@%s:%s/%s",
+      aws_db_instance.mysql.username, urlencode(random_password.database.result),
+    aws_db_instance.mysql.address, aws_db_instance.mysql.port, var.database_name)
   })
+}
+
+resource "random_password" "jwt" {
+  length  = 64
+  special = false
+}
+resource "aws_secretsmanager_secret" "jwt" {
+  name = "${local.name}/jwt"
+}
+resource "aws_secretsmanager_secret_version" "jwt" {
+  secret_id     = aws_secretsmanager_secret.jwt.id
+  secret_string = random_password.jwt.result
 }
