@@ -13,6 +13,9 @@ Branch: `bugfix/WBS-A03-cleanup-release-pipeline`.
 - Release scripts now build/reuse immutable ECR images, register complete ECS
   revisions, verify service activation and health, preserve scheduled task settings,
   and attempt rollback on release failure. Native process failures propagate.
+- Frontend rollback restores the service before invalidating CloudFront and waiting
+  for completion. Regression tests cover a later scheduler failure, a frontend
+  rollout failure, and cache invalidation failure without blocking backend rollback.
 - Terraform defines idle services, job tasks, separate job networking, DB/JWT secret
   injection, scoped IAM/OIDC, and disabled schedules. The final stack reuses the
   existing shared S3 bucket; the old development expiration rule stays disabled.
@@ -28,7 +31,7 @@ Branch: `bugfix/WBS-A03-cleanup-release-pipeline`.
 | Local MySQL 8.4.11, canonical SQL bootstrap | 19 tables created successfully |
 | Backend regression including API-01 through API-07 | 36 passed, 3 pre-existing database placeholders skipped |
 | Real MySQL cleanup with 201 orphan records | All 201 processed in one run; retry run succeeds; 2 completed attachments retained |
-| Deployment Python tests with AWS stubs | 14 passed |
+| Deployment Python tests with AWS stubs/mocks | 17 passed |
 | PowerShell smoke and failure propagation | Passed |
 | Backend/infrastructure Ruff | Passed |
 | Terraform final/dev-storage validate | Passed |

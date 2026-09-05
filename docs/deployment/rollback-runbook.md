@@ -12,6 +12,9 @@ preserve their prior settings and are restored on a subsequent release failure.
 Inspect the failed task's CloudWatch log and verify the restored service's PRIMARY
 revision, running count and health. If rollback itself fails, the workflow remains
 failed and requires operator recovery; never describe that run as deployed.
-After a frontend rollback, invalidate CloudFront again so cached files match the
-restored image. For a manual rollback, use the prior task revision directly rather
-than rebuilding or retagging an existing immutable ECR SHA.
+After restoring the frontend service, the release script invalidates CloudFront
+and waits for completion, including when the frontend rollout itself fails. A
+cache invalidation failure is reported as a rollback error while other service
+rollbacks still proceed. For a manual rollback, use the prior task revision
+directly rather than rebuilding or retagging an existing immutable ECR SHA, then
+invalidate CloudFront so cached files match the restored image.

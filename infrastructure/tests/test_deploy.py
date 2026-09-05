@@ -1,8 +1,9 @@
 import importlib.util
 import io
 import json
+import sys
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import boto3
 import pytest
@@ -244,3 +245,113 @@ def test_bootstrap_missing_or_failed_container_is_a_release_failure(containers):
     ecs.describe_tasks.return_value = {"tasks": [{"containers": containers}]}
     with pytest.raises(RuntimeError, match="Bootstrap failed"):
         deploy.run_bootstrap(ecs, {"cluster": "cluster", "job_network": {}}, "revision")
+
+
+@pytest.mark.parametrize("failure", ["scheduler", "frontend_rollout", "rollback_cache"])
+def test_release_rollback_refreshes_restored_frontend_cache(monkeypatch, tmp_path, failure):
+    commit = "a" * 40
+    config = {
+        "region": "ap-southeast-2",
+        "cluster": "cluster",
+        "base_url": "https://review.invalid",
+        "cloudfront_distribution_id": "distribution",
+        "services": {
+            component: {"name": component, "family": component, "repository": component}
+            for component in ["backend", "frontend"]
+        },
+        "jobs": {"cleanup": {"family": "cleanup", "container": "backend", "schedule": "job"}},
+    }
+    config_path = tmp_path / "deployment.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(
+        sys, "argv", ["deploy.py", "--config", str(config_path), "--commit", commit]
+    )
+    monkeypatch.setattr(deploy.subprocess, "check_output", Mock(side_effect=[commit, ""]))
+    clients = {service: Mock() for service in ["ecs", "ecr", "scheduler", "cloudfront"]}
+    session = Mock()
+    session.client.side_effect = clients.__getitem__
+    monkeypatch.setattr(deploy.boto3, "Session", Mock(return_value=session))
+    monkeypatch.setattr(deploy, "image_for_commit", Mock(return_value="repository@sha256:new"))
+    monkeypatch.setattr(deploy, "register_image", Mock(return_value="new"))
+    monkeypatch.setattr(deploy, "check_health", Mock())
+    monkeypatch.setattr(
+        deploy, "update_schedule_revision", Mock(side_effect=RuntimeError("schedule failed"))
+    )
+    html = MagicMock()
+    html.__enter__.return_value.status = 200
+    html.__enter__.return_value.headers = {"Content-Type": "text/html"}
+    monkeypatch.setattr(deploy, "urlopen", Mock(return_value=html))
+    ecs, cloudfront = clients["ecs"], clients["cloudfront"]
+    ecs.describe_services.side_effect = [
+        {
+            "services": [
+                {
+                    "status": "ACTIVE",
+                    "serviceName": name,
+                    "taskDefinition": "old",
+                    "desiredCount": 1,
+                }
+            ]
+        }
+        for name in ["backend", "frontend"]
+    ]
+    events = []
+    ecs.update_service.side_effect = lambda **kw: events.append(
+        f"update:{kw['service']}:{kw['taskDefinition']}"
+    )
+    ecs.get_waiter.return_value.wait.side_effect = lambda **kw: events.append(
+        f"restored:{kw['services'][0]}"
+    )
+
+    def wait_for_revision(ecs, cluster, name, revision, desired):
+        if failure == "frontend_rollout" and name == "frontend":
+            raise RuntimeError("frontend rollout failed")
+
+    monkeypatch.setattr(deploy, "wait_for_revision", wait_for_revision)
+
+    def create_invalidation(**kwargs):
+        assert kwargs["DistributionId"] == "distribution"
+        assert kwargs["InvalidationBatch"]["Paths"] == {"Quantity": 1, "Items": ["/*"]}
+        reference = kwargs["InvalidationBatch"]["CallerReference"]
+        phase = "rollback" if reference.startswith(f"{commit}-rollback-") else "release"
+        events.append(f"invalidate:{phase}")
+        return {"Invalidation": {"Id": phase}}
+
+    def wait_for_invalidation(**kwargs):
+        assert kwargs["DistributionId"] == "distribution"
+        events.append(f"cache_ready:{kwargs['Id']}")
+        if failure == "rollback_cache" and kwargs["Id"] == "rollback":
+            raise RuntimeError("rollback cache failed")
+
+    cloudfront.create_invalidation.side_effect = create_invalidation
+    cloudfront.get_waiter.return_value.wait.side_effect = wait_for_invalidation
+    if failure == "rollback_cache":
+        with pytest.raises(ExceptionGroup) as raised:
+            deploy.main()
+        assert [str(error) for error in raised.value.exceptions] == [
+            "schedule failed",
+            "rollback cache failed",
+        ]
+    else:
+        expected_error = (
+            "frontend rollout failed" if failure == "frontend_rollout" else "schedule failed"
+        )
+        with pytest.raises(RuntimeError, match=expected_error):
+            deploy.main()
+    expected = ["update:backend:new", "update:frontend:new"]
+    if failure != "frontend_rollout":
+        expected.extend(["invalidate:release", "cache_ready:release"])
+    expected.extend(
+        [
+            "update:frontend:old",
+            "restored:frontend",
+            "invalidate:rollback",
+            "cache_ready:rollback",
+            "update:backend:old",
+            "restored:backend",
+        ]
+    )
+    assert events == expected
+    assert all(
+        call.args == ("invalidation_completed",) for call in cloudfront.get_waiter.call_args_list
+    )

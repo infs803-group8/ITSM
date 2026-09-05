@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import time
+from functools import partial
 from pathlib import Path
 from urllib.request import urlopen
 
@@ -100,7 +101,7 @@ def wait_for_revision(ecs, cluster, name, revision, desired):
         raise RuntimeError(f"ECS did not activate requested revision for {name}")
 
 
-def deploy_service(ecs, cluster, name, revision):
+def deploy_service(ecs, cluster, name, revision, *, after_rollback=None):
     previous = read_service(ecs, cluster, name)
     desired = max(previous["desiredCount"], 1)
     try:
@@ -110,7 +111,7 @@ def deploy_service(ecs, cluster, name, revision):
         wait_for_revision(ecs, cluster, name, revision, desired)
     except Exception as release_error:
         try:
-            rollback_service(ecs, cluster, previous)
+            rollback_service(ecs, cluster, previous, after_rollback=after_rollback)
         except Exception as rollback_error:
             raise ExceptionGroup(
                 "Deployment and rollback failed", [release_error, rollback_error]
@@ -119,7 +120,7 @@ def deploy_service(ecs, cluster, name, revision):
     return previous
 
 
-def rollback_service(ecs, cluster, previous):
+def rollback_service(ecs, cluster, previous, *, after_rollback=None):
     name = previous["serviceName"]
     print(f"Rolling back {name} to {previous['taskDefinition']}", flush=True)
     ecs.update_service(
@@ -129,6 +130,22 @@ def rollback_service(ecs, cluster, previous):
         desiredCount=previous["desiredCount"],
     )
     ecs.get_waiter("services_stable").wait(cluster=cluster, services=[name])
+    if after_rollback is not None:
+        after_rollback()
+
+
+def invalidate_frontend(cloudfront, distribution_id, reference):
+    invalidation = cloudfront.create_invalidation(
+        DistributionId=distribution_id,
+        InvalidationBatch={
+            "Paths": {"Quantity": 1, "Items": ["/*"]},
+            "CallerReference": f"{reference}-{time.time_ns()}",
+        },
+    )
+    cloudfront.get_waiter("invalidation_completed").wait(
+        DistributionId=distribution_id,
+        Id=invalidation["Invalidation"]["Id"],
+    )
 
 
 def check_health(base_url, commit=None, *, attempts=12):
@@ -222,25 +239,29 @@ def main():
             service = config["services"][component]
             image = image_for_commit(ecr, service["repository"], args.commit, component)
             revision = register_image(ecs, service["family"], component, image, args.commit)
-            previous_services.append(
-                deploy_service(ecs, config["cluster"], service["name"], revision)
+            after_rollback = None
+            if component == "frontend":
+                after_rollback = partial(
+                    invalidate_frontend,
+                    session.client("cloudfront"),
+                    config["cloudfront_distribution_id"],
+                    f"{args.commit}-rollback",
+                )
+            previous = deploy_service(
+                ecs,
+                config["cluster"],
+                service["name"],
+                revision,
+                after_rollback=after_rollback,
             )
+            previous_services.append((previous, after_rollback))
             print(f"{component}: {image} -> {revision}", flush=True)
             if component == "backend":
                 backend_image = image
                 check_health(config["base_url"], args.commit)
         if "frontend" in components:
-            cloudfront = session.client("cloudfront")
-            invalidation = cloudfront.create_invalidation(
-                DistributionId=config["cloudfront_distribution_id"],
-                InvalidationBatch={
-                    "Paths": {"Quantity": 1, "Items": ["/*"]},
-                    "CallerReference": f"{args.commit}-{time.time_ns()}",
-                },
-            )
-            cloudfront.get_waiter("invalidation_completed").wait(
-                DistributionId=config["cloudfront_distribution_id"],
-                Id=invalidation["Invalidation"]["Id"],
+            invalidate_frontend(
+                session.client("cloudfront"), config["cloudfront_distribution_id"], args.commit
             )
             with urlopen(config["base_url"], timeout=30) as response:
                 if response.status != 200 or "text/html" not in response.headers.get(
@@ -263,9 +284,9 @@ def main():
                 scheduler.update_schedule(**previous)
             except Exception as error:
                 errors.append(error)
-        for previous in reversed(previous_services):
+        for previous, after_rollback in reversed(previous_services):
             try:
-                rollback_service(ecs, config["cluster"], previous)
+                rollback_service(ecs, config["cluster"], previous, after_rollback=after_rollback)
             except Exception as error:
                 errors.append(error)
         if len(errors) > 1:
