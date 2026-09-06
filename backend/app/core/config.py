@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,7 +18,7 @@ class Settings(BaseSettings):
     s3_key_prefix: str = "attachments"
     s3_endpoint_url: str | None = None
     s3_public_base_url: str | None = None
-    jwt_secret: str = "replace-this-in-local-env"
+    jwt_secret: str = Field(default="replace-this-local-jwt-secret-32bytes", min_length=32)
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 60
     release_version: str = "local"
