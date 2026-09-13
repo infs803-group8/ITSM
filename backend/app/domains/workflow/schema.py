@@ -15,7 +15,7 @@ here should be repointed, since B, not C, owns that shape long-term.
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -183,6 +183,19 @@ class ReopenRequest(BaseModel):
     """docs/api/openapi.yaml: ReopenRequest (API-30)."""
 
     reason: str = Field(min_length=1, max_length=4000)
+
+    model_config = {"extra": "forbid"}
+
+
+class CloseRequest(BaseModel):
+    """docs/api/openapi.yaml: CloseRequest (API-31). ``acknowledge`` is
+    typed ``Literal[True]`` rather than ``bool`` -- pydantic then rejects
+    ``false`` (or any non-bool) at validation time on its own, matching
+    the schema's own ``"const": true``, with no extra check needed here.
+    """
+
+    acknowledge: Literal[True]
+    reason: str | None = Field(default=None, min_length=1, max_length=1000)
 
     model_config = {"extra": "forbid"}
 

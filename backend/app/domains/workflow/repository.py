@@ -462,3 +462,23 @@ class WorkflowRepository:
             ),
             {"assignee_id": assignee_id, "ticket_id": ticket_id},
         )
+
+    def apply_manual_close(self, *, ticket_id: int, closed_at: datetime) -> None:
+        """C034: RESOLVED -> CLOSED. Touches only ``status_code``/
+        ``closure_type``/``closed_at`` -- ``chk_tickets_resolution``'s
+        first branch already holds for RESOLVED and CLOSED alike, so the
+        resolution_* columns Confirm Resolution (C032) wrote stay exactly
+        as they are.
+        """
+        self.database.execute(
+            text(
+                """
+                UPDATE tickets
+                SET status_code = 'CLOSED',
+                    closure_type = 'MANUAL_USER',
+                    closed_at = :closed_at
+                WHERE ticket_id = :ticket_id
+                """
+            ),
+            {"closed_at": as_mysql_utc(closed_at), "ticket_id": ticket_id},
+        )

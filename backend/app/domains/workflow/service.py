@@ -677,3 +677,63 @@ class ReopenTicketService:
         return self.assignment_service.assign_new_ticket(
             ticket_id=ticket_id, category_code=category_code
         )
+
+
+@dataclass(frozen=True)
+class ManualCloseOutcome:
+    status: TicketStatus
+    event_id: int
+
+
+class ManualCloseService:
+    """API-31 Manual Close (C034): RESOLVED -> CLOSED, ticket requester
+    only, before ``auto_close_at`` (``DeadlineService.enforce_resolved_
+    not_auto_closed``'s second named caller, alongside C033's Reopen).
+    ``cycle_effect`` is "NONE" -- manual close touches no Engineering SLA
+    cycle bookkeeping, and per API31Success in openapi.yaml this action
+    writes no comment (``comment_id`` stays null in the response) --
+    an optional ``reason`` goes into the audit event's own metadata
+    instead, same pattern as C028's Escalate.
+    """
+
+    def __init__(self, database) -> None:
+        self.database = database
+        self.repository = WorkflowRepository(database)
+        self.audit = AuditService(database)
+        self.deadlines = DeadlineService(database)
+
+    def manual_close(
+        self,
+        *,
+        ticket_id: int,
+        actor: RequestContext,
+        reason: str | None,
+        now: datetime | None = None,
+    ) -> ManualCloseOutcome:
+        now = now or utc_now()
+        locked = lock_ticket_state(self.repository, ticket_id=ticket_id, now=now)
+        if locked.state.status == TicketStatus.RESOLVED:
+            self.deadlines.enforce_resolved_not_auto_closed(
+                ResolvedSnapshot.from_row(locked.row), now=now
+            )
+
+        request = ActionRequest(
+            action=WorkflowAction.MANUAL_CLOSE,
+            actor_role=UserRole(actor.role),
+            actor_id=actor.user_id,
+        )
+        result = evaluate_or_raise(locked.state, request)
+        assert result.cycle_effect == "NONE"
+        assert result.closure_type is not None
+
+        self.repository.apply_manual_close(ticket_id=ticket_id, closed_at=now)
+
+        metadata: dict[str, object] | None = {"reason": reason} if reason else None
+        event_id = self.audit.append_event(
+            ticket_id=ticket_id,
+            event_type=EventType.TICKET_CLOSED_MANUAL,
+            scope=EventScope.USER_VISIBLE,
+            actor_id=actor.user_id,
+            metadata=metadata,
+        )
+        return ManualCloseOutcome(status=result.target_status, event_id=event_id)

@@ -16,6 +16,7 @@ from app.core.enums import UserRole
 from app.core.errors import ApplicationError
 from app.domains.workflow.schema import (
     AvailableAction,
+    CloseRequest,
     EscalateRequest,
     ReopenRequest,
     RequestUserInfoRequest,
@@ -29,6 +30,7 @@ from app.domains.workflow.serializer import ActorContext
 from app.domains.workflow.service import (
     ConfirmResolutionService,
     EscalateTicketService,
+    ManualCloseService,
     ReopenTicketService,
     RequestUserInfoService,
     ResumeTicketService,
@@ -286,4 +288,32 @@ def reopen_ticket(
         action=AvailableAction.REOPEN,
         event_id=outcome.event_id,
         comment_id=outcome.comment_id,
+    )
+
+
+@router.post(
+    "/tickets/{id}/close",
+    response_model=TicketActionResponse,
+    operation_id="api31CloseTicket",
+    summary="Manual close",
+    tags=["Resolution"],
+    responses=error_responses(401, 403, 404, 409, 422, 503),
+)
+def close_ticket(
+    ticket_id: Annotated[int, Path(alias="id", ge=1)],
+    body: CloseRequest,
+    actor: Annotated[RequestContext, Depends(get_current_actor)],
+    database: Annotated[Session, Depends(get_db)],
+    _request_id: Annotated[UUID | None, Depends(request_id_header)],
+) -> TicketActionResponse:
+    outcome = ManualCloseService(database).manual_close(
+        ticket_id=ticket_id, actor=actor, reason=body.reason
+    )
+    database.commit()
+    return build_ticket_action_response(
+        database,
+        ticket_id=ticket_id,
+        actor=actor,
+        action=AvailableAction.CLOSE,
+        event_id=outcome.event_id,
     )
