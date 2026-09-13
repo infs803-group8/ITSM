@@ -21,6 +21,7 @@ from app.domains.workflow.schema import (
     ResumeRequest,
     TicketActionData,
     TicketActionResponse,
+    VendorResponseView,
 )
 from app.domains.workflow.serializer import ActorContext
 from app.domains.workflow.service import (
@@ -38,7 +39,7 @@ def error_responses(*status_codes: int) -> dict[int, dict[str, object]]:
     return {code: {"model": ErrorResponse} for code in status_codes}
 
 
-def _respond(
+def build_ticket_action_response(
     database: Session,
     *,
     ticket_id: int,
@@ -46,14 +47,28 @@ def _respond(
     action: AvailableAction,
     event_id: int,
     comment_id: int | None = None,
+    vendor_response: VendorResponseView | None = None,
 ) -> TicketActionResponse:
-    """Shared response assembly for every action in this router: build the
-    fresh, post-write TicketDetail (same read C021's WorkflowReadModel
-    powers API-17 with) and wrap it in a TicketActionData.
+    """Shared response assembly for every write-path action -- used by this
+    router and by ``vendor_workflow.router`` (C029 onward), since both
+    domains' actions return the same ``TicketActionResponse`` contract.
+    Builds the fresh, post-write TicketDetail (same read C021's
+    WorkflowReadModel powers API-17 with) and wraps it in a
+    TicketActionData.
 
     ``comment_id`` defaults to None -- only actions that also write a
-    comment (Request User Info today) pass their outcome's comment_id
+    comment (Request User Info, Resume) pass their outcome's comment_id
     through; every other action leaves it unset exactly as before.
+
+    ``vendor_request`` (top-level, on ``TicketActionData``) was previously
+    hardcoded to ``None`` for every action. Comparing API26Success/
+    API27Success against API28-31Success in docs/api/openapi.yaml shows
+    this field should always MIRROR the freshly-assembled
+    ``TicketDetail.vendor_request`` -- not stay permanently unset -- so
+    C029 fixes that here rather than repeating the old bug in a new
+    vendor_workflow-local copy of this helper. ``vendor_response`` has no
+    equivalent on ``TicketDetail`` (Vendor Response, C030, is the only
+    action that produces one), so it stays an explicit optional param.
     """
     actor_context = ActorContext(
         role=UserRole(actor.role), user_id=actor.user_id, vendor_org_id=actor.vendor_org_id
@@ -67,10 +82,18 @@ def _respond(
             ticket=ticket,
             event_id=event_id,
             comment_id=comment_id,
-            vendor_request=None,
-            vendor_response=None,
+            vendor_request=ticket.vendor_request,
+            vendor_response=vendor_response,
         )
     )
+
+
+# Backward-compatible alias: this router's own call sites below were
+# written against the old private name before the C029 rename. Keeping
+# both names avoids a purely-cosmetic diff across every existing call
+# site in this same commit; new code (vendor_workflow.router onward)
+# should import ``build_ticket_action_response`` directly.
+_respond = build_ticket_action_response
 
 
 @router.post(
