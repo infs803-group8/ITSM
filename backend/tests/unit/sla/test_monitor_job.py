@@ -18,6 +18,22 @@ NOW = datetime(2026, 9, 1, 0, 0, 0, tzinfo=UTC)
 CONFIG = SlaConfig(engineering_sla_hours=48, at_risk_percent=80)
 
 
+def PENDING_USER_ROW(ticket_id: int) -> dict:
+    """A row-shaped dict with every field PendingUserSnapshot.from_row reads."""
+    return {
+        "ticket_id": ticket_id,
+        "pending_user_reason": "INFORMATION_REQUIRED",
+        "pending_user_deadline": NOW - timedelta(hours=1),
+        "resolution_summary": None,
+        "assignee_id": 10,
+    }
+
+
+def RESOLVED_ROW(ticket_id: int) -> dict:
+    """A row-shaped dict with every field ResolvedSnapshot.from_row reads."""
+    return {"ticket_id": ticket_id, "auto_close_at": NOW - timedelta(hours=1)}
+
+
 class DatabaseFake:
     def __init__(self):
         self.commits = 0
@@ -171,7 +187,7 @@ def test_pending_user_candidate_already_moved_on_is_skipped_not_processed():
 def test_pending_user_timeout_applied_commits_and_counts_as_processed():
     workflow_repository = WorkflowRepositoryFake(
         pending_user_pages=[[501], []],
-        pending_user_snapshots={501: {"ticket_id": 501}},
+        pending_user_snapshots={501: PENDING_USER_ROW(501)},
     )
     deadlines = DeadlineServiceFake(pending_user_outcomes={501: Outcome(applied=True)})
     job, database = job_with(workflow_repository=workflow_repository, deadlines=deadlines)
@@ -190,7 +206,7 @@ def test_pending_user_timeout_not_yet_actually_expired_is_a_skip():
     """
     workflow_repository = WorkflowRepositoryFake(
         pending_user_pages=[[501], []],
-        pending_user_snapshots={501: {"ticket_id": 501}},
+        pending_user_snapshots={501: PENDING_USER_ROW(501)},
     )
     deadlines = DeadlineServiceFake(pending_user_outcomes={501: Outcome(applied=False)})
     job, database = job_with(workflow_repository=workflow_repository, deadlines=deadlines)
@@ -201,7 +217,7 @@ def test_pending_user_timeout_not_yet_actually_expired_is_a_skip():
 def test_auto_close_candidate_applies_and_is_processed():
     workflow_repository = WorkflowRepositoryFake(
         auto_close_pages=[[901], []],
-        resolved_snapshots={901: {"ticket_id": 901}},
+        resolved_snapshots={901: RESOLVED_ROW(901)},
     )
     deadlines = DeadlineServiceFake(auto_close_outcomes={901: Outcome(applied=True)})
     job, database = job_with(workflow_repository=workflow_repository, deadlines=deadlines)
@@ -234,9 +250,9 @@ def test_run_once_aggregates_all_three_categories_and_totals_failures():
     sla = SlaServiceFake(pages=[[301]], outcomes={301: "outcome"})
     workflow_repository = WorkflowRepositoryFake(
         pending_user_pages=[[401]],
-        pending_user_snapshots={401: {"ticket_id": 401}},
+        pending_user_snapshots={401: PENDING_USER_ROW(401)},
         auto_close_pages=[[402]],
-        resolved_snapshots={402: {"ticket_id": 402}},
+        resolved_snapshots={402: RESOLVED_ROW(402)},
     )
     deadlines = DeadlineServiceFake(
         pending_user_outcomes={401: Outcome(applied=True)},
