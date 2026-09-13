@@ -102,6 +102,82 @@ class WorkflowRepository:
             return None
         return row
 
+    def get_workflow_snapshot(self, ticket_id: int) -> Mapping[str, Any] | None:
+        """Read-only ticket + requester + assignee snapshot for C021's
+        ``WorkflowReadModel``. Unlike ``get_ticket_for_update`` this is a
+        plain SELECT (no ``FOR UPDATE``) since a GET must never take a
+        row lock, and it carries the extra display fields (names, tier,
+        skills, availability, active load) that only a read path needs.
+
+        ``active_load`` reuses the exact definition already established by
+        ``app.domains.dashboard.repository``: tickets currently assigned to
+        that engineer in a non-terminal, non-unassigned status.
+        """
+        return (
+            self.database.execute(
+                text(
+                    """
+                    SELECT t.ticket_id, t.status_code, t.requester_id, t.assignee_id,
+                           t.sla_cycle_no, t.sla_status_code, t.sla_started_at,
+                           t.sla_deadline, t.pending_user_reason, t.pending_user_deadline,
+                           t.resolution_summary, t.resolution_type, t.resolved_at,
+                           t.auto_close_at, t.closure_type, t.closed_at,
+                           requester.display_name AS requester_display_name,
+                           assignee.user_id AS assignee_user_id,
+                           assignee.display_name AS assignee_display_name,
+                           assignee.role_code AS assignee_role_code,
+                           assignee.is_available AS assignee_is_available,
+                           COALESCE(skills.skill_codes, '') AS assignee_skill_codes,
+                           COALESCE(loads.active_load, 0) AS assignee_active_load
+                    FROM tickets t
+                    JOIN users requester ON requester.user_id = t.requester_id
+                    LEFT JOIN users assignee ON assignee.user_id = t.assignee_id
+                    LEFT JOIN (
+                        SELECT user_id, GROUP_CONCAT(category_code ORDER BY category_code)
+                          AS skill_codes
+                        FROM user_skills GROUP BY user_id
+                    ) skills ON skills.user_id = assignee.user_id
+                    LEFT JOIN (
+                        SELECT assignee_id, COUNT(*) AS active_load FROM tickets
+                        WHERE status_code IN ('ASSIGNED', 'IN_PROGRESS',
+                                              'PENDING_USER', 'PENDING_VENDOR')
+                        GROUP BY assignee_id
+                    ) loads ON loads.assignee_id = assignee.user_id
+                    WHERE t.ticket_id = :ticket_id
+                    """
+                ),
+                {"ticket_id": ticket_id},
+            )
+            .mappings()
+            .one_or_none()
+        )
+
+    def get_latest_vendor_request(self, ticket_id: int) -> Mapping[str, Any] | None:
+        """The most recently created vendor request for this ticket, whatever
+        its status -- Q03 (decision log, draft): ``TicketDetail.vendor_request``
+        exposes only the single "current" request, not the full history; a
+        dedicated history endpoint is a separate, not-yet-agreed change.
+        """
+        return (
+            self.database.execute(
+                text(
+                    """
+                    SELECT vr.vendor_request_id, vr.vendor_org_id, vr.vendor_message,
+                           vr.status, vr.created_at, vr.responded_at,
+                           org.name AS vendor_org_name, org.is_active AS vendor_org_is_active
+                    FROM vendor_requests vr
+                    JOIN vendor_organisations org ON org.vendor_org_id = vr.vendor_org_id
+                    WHERE vr.ticket_id = :ticket_id
+                    ORDER BY vr.created_at DESC, vr.vendor_request_id DESC
+                    LIMIT 1
+                    """
+                ),
+                {"ticket_id": ticket_id},
+            )
+            .mappings()
+            .one_or_none()
+        )
+
     def apply_auto_close(self, *, ticket_id: int, closed_at: datetime) -> None:
         """C019.01-03: CLOSED + AUTO_AFTER_7_DAYS, resolution_* untouched."""
         self.database.execute(
