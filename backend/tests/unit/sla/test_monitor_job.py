@@ -11,6 +11,8 @@ test file this stack has added.
 
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy.exc import OperationalError
+
 from app.domains.sla.cycle import SlaConfig
 from app.domains.sla.monitor_job import CategoryCounts, SlaMonitorJob
 
@@ -257,3 +259,107 @@ def test_a_default_now_falls_back_to_the_real_clock():
     summary = job.run_once()
     assert summary.started_at is not None
     assert summary.finished_at >= summary.started_at
+
+
+# --------------------------------------------------------------------
+# C037.04: bounded retry on OperationalError (connection loss/deadlock),
+# always via a completely fresh Session -- exercised directly against
+# _run_one with a hand-built process_one, independent of the sla/
+# workflow_repository/deadlines fakes above (which _discard_session_and_
+# reopen's own _rebuild_collaborators() would otherwise silently replace
+# with real, unfaked instances once a retry actually happens).
+# --------------------------------------------------------------------
+
+
+def test_a_connection_error_retries_and_then_succeeds_on_a_fresh_session():
+    databases_created = []
+
+    def session_factory():
+        fresh = DatabaseFake()
+        databases_created.append(fresh)
+        return fresh
+
+    job = SlaMonitorJob(DatabaseFake(), session_factory=session_factory)
+    original_database = job.database
+
+    calls = {"count": 0}
+
+    def process_one(ticket_id):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise OperationalError("SELECT ... FOR UPDATE", {}, Exception("server has gone away"))
+        return True
+
+    counts = CategoryCounts()
+    job._run_one(counts, 601, process_one)
+
+    assert calls["count"] == 2
+    assert counts.processed == 1
+    assert counts.failed == 0
+    # The Session that hit the error was discarded; a new one (from the
+    # factory) is what the eventually-successful attempt committed on.
+    assert job.database is not original_database
+    assert job.database in databases_created
+    assert job.database.commits == 1
+
+
+def test_a_connection_error_exhausting_all_retries_is_counted_failed_not_swallowed():
+    def session_factory():
+        return DatabaseFake()
+
+    job = SlaMonitorJob(DatabaseFake(), session_factory=session_factory)
+
+    def always_disconnected(ticket_id):
+        raise OperationalError("SELECT ... FOR UPDATE", {}, Exception("server has gone away"))
+
+    counts = CategoryCounts()
+    job._run_one(counts, 602, always_disconnected)
+
+    assert counts.failed == 1
+    assert counts.processed == 0
+    assert counts.skipped == 0
+
+
+def test_a_connection_error_with_no_session_factory_fails_immediately_without_retrying():
+    """A caller that never supplied session_factory (every other test in
+    this file, and any future caller that genuinely has no way to open a
+    second Session) gets no retry at all -- one OperationalError is one
+    failure, counted immediately.
+    """
+    job, database = job_with()  # job_with() never passes session_factory
+
+    call_count = {"n": 0}
+
+    def always_disconnected(ticket_id):
+        call_count["n"] += 1
+        raise OperationalError("SELECT ... FOR UPDATE", {}, Exception("server has gone away"))
+
+    counts = CategoryCounts()
+    job._run_one(counts, 603, always_disconnected)
+
+    assert call_count["n"] == 1
+    assert counts.failed == 1
+
+
+def test_a_plain_business_logic_exception_is_never_retried_even_with_a_session_factory():
+    """C037.04 only retries the connection-class failure -- a business/
+    data problem (anything that is not OperationalError) is not a
+    transient condition a retry would fix, so it must fail on the first
+    attempt exactly like before this task, even when a session_factory
+    is available.
+    """
+    def session_factory():
+        return DatabaseFake()
+
+    job = SlaMonitorJob(DatabaseFake(), session_factory=session_factory)
+    call_count = {"n": 0}
+
+    def raises_value_error(ticket_id):
+        call_count["n"] += 1
+        raise ValueError("not a connection problem")
+
+    counts = CategoryCounts()
+    job._run_one(counts, 604, raises_value_error)
+
+    assert call_count["n"] == 1
+    assert counts.failed == 1

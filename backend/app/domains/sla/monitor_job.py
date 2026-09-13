@@ -32,10 +32,12 @@ actually requires, and both exist below.
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from uuid import uuid4
 
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.clock import utc_now
@@ -51,6 +53,15 @@ logger = logging.getLogger(__name__)
 #: target (C037.06 explicitly reserves that for a future load test) --
 #: just a bound on how much one round trip re-reads.
 _DEFAULT_PAGE_SIZE = 200
+
+#: C037.04: bounded retries for a connection-class failure only (server
+#: gone away, deadlock) -- so up to 3 total attempts per ticket. A
+#: placeholder value, not a load-tested constant: C037.06 explicitly
+#: hands the real retry/timeout/batch parameters to Member A and says
+#: not to claim a throughput number without a load test, so this number
+#: exists only to keep a genuinely wedged connection from retrying
+#: forever, not as a tuned production setting.
+_MAX_CONNECTION_RETRIES = 2
 
 
 @dataclass
@@ -97,11 +108,56 @@ class RunSummary:
 
 
 class SlaMonitorJob:
-    def __init__(self, database: Session) -> None:
+    def __init__(
+        self,
+        database: Session,
+        *,
+        session_factory: Callable[[], Session] | None = None,
+    ) -> None:
+        """``session_factory`` is optional and only used for C037.04's
+        connection-loss/deadlock recovery: when it is supplied, a
+        ``sqlalchemy.exc.OperationalError`` from ``process_one`` (the
+        real error class MySQL connection loss and deadlocks both
+        surface as through pymysql) discards this job's current
+        ``Session`` entirely and opens a brand new one from the factory
+        before a bounded number of retries -- never resuming on the
+        broken Session, and never trusting anything it may have cached.
+        Callers that don't need this recovery path (every unit test in
+        this stack, which never raises OperationalError) can omit it.
+        """
         self.database = database
-        self.workflow_repository = WorkflowRepository(database)
-        self.sla = SlaCycleService(database)
-        self.deadlines = DeadlineService(database)
+        self._session_factory = session_factory
+        self._rebuild_collaborators()
+
+    def _rebuild_collaborators(self) -> None:
+        self.workflow_repository = WorkflowRepository(self.database)
+        self.sla = SlaCycleService(self.database)
+        self.deadlines = DeadlineService(self.database)
+
+    def _discard_session_and_reopen(self) -> None:
+        """C037.04: never keep using a ``Session`` whose connection just
+        broke or whose transaction just deadlocked. Best-effort close of
+        the old one (it may already be unusable, hence the swallow), then
+        a completely fresh ``Session`` and fresh repository/service
+        instances built against it -- so a retried ``process_one`` call
+        re-reads its candidate from scratch rather than trusting anything
+        the dead Session's identity map may have cached.
+        """
+        try:
+            self.database.close()
+        except Exception:
+            pass
+        if self._session_factory is None:
+            # No factory to rebuild from -- the caller opted out of this
+            # recovery path. Roll back so at least the next statement on
+            # this same Session doesn't inherit an aborted transaction.
+            try:
+                self.database.rollback()
+            except Exception:
+                pass
+            return
+        self.database = self._session_factory()
+        self._rebuild_collaborators()
 
     def run_once(self, *, now: datetime | None = None, limit: int = _DEFAULT_PAGE_SIZE) -> RunSummary:
         """C036.01/.04: one full pass over all three candidate families,
@@ -201,40 +257,68 @@ class SlaMonitorJob:
         return counts
 
     def _run_one(self, counts: CategoryCounts, ticket_id: int, process_one) -> None:
-        try:
-            processed = process_one(ticket_id)
-        except Exception:
-            # C036.05: never log the exception message itself (it could
-            # echo back request/DB content) -- only that this ticket
-            # failed, so an operator can go look at it directly. C037.02
-            # (not yet implemented) is the task that decides retry policy
-            # for this failure; this method's job is only to isolate it
-            # from every other candidate in the batch and make sure it is
-            # counted, never silently swallowed.
-            self.database.rollback()
-            counts.failed += 1
-            logger.warning("SLA monitor: ticket %s failed during processing", ticket_id)
+        attempt = 1
+        while True:
+            try:
+                processed = process_one(ticket_id)
+            except OperationalError:
+                # C037.04: connection loss ("MySQL server has gone away")
+                # and a deadlock both surface through pymysql as
+                # OperationalError -- the one class of failure worth a
+                # bounded retry, and only after discarding the Session
+                # that hit it (never continuing to issue statements on a
+                # connection that may already be dead).
+                self._discard_session_and_reopen()
+                if self._session_factory is None or attempt > _MAX_CONNECTION_RETRIES:
+                    counts.failed += 1
+                    logger.warning(
+                        "SLA monitor: ticket %s failed after %d attempt(s) "
+                        "(connection error)",
+                        ticket_id,
+                        attempt,
+                    )
+                    return
+                logger.warning(
+                    "SLA monitor: ticket %s hit a connection error, retrying (attempt %d)",
+                    ticket_id,
+                    attempt,
+                )
+                attempt += 1
+                continue
+            except Exception:
+                # C036.05: never log the exception message itself (it
+                # could echo back request/DB content) -- only that this
+                # ticket failed, so an operator can go look at it
+                # directly. Any non-connection-class failure is not
+                # retried here -- it is a business-logic/data problem
+                # that a retry would not fix -- so it is isolated from
+                # every other candidate in the batch and counted, never
+                # silently swallowed.
+                self.database.rollback()
+                counts.failed += 1
+                logger.warning("SLA monitor: ticket %s failed during processing", ticket_id)
+                return
+            if processed:
+                self.database.commit()
+                counts.processed += 1
+            else:
+                self.database.rollback()
+                counts.skipped += 1
             return
-        if processed:
-            self.database.commit()
-            counts.processed += 1
-        else:
-            self.database.rollback()
-            counts.skipped += 1
 
 
 def main() -> int:
     """C036.01/.06: one scan, then exit -- no loop, no Uvicorn lifespan
-    hook. Returns the process exit code C036.04 requires: 0 only when
-    every candidate this run touched was either processed or cleanly
-    skipped, 1 if anything failed (never swallowed into a 0, per
-    C037.02's own wording, even though that task's retry/crash-recovery
-    behaviour itself is not yet implemented here).
+    hook. Returns the process exit code C036.04/C037.02 requires: 0 only
+    when every candidate this run touched was either processed or
+    cleanly skipped, 1 if anything failed -- including a ticket that
+    exhausted its C037.04 connection-loss retries -- never swallowed
+    into a 0.
     """
     logging.basicConfig(level=logging.INFO)
     settings = get_settings()
     with SessionLocal() as database:
-        summary = SlaMonitorJob(database).run_once()
+        summary = SlaMonitorJob(database, session_factory=SessionLocal).run_once()
     logger.info(
         "SLA monitor run finished run_id=%s version=%s started_at=%s finished_at=%s "
         "threshold(processed=%d skipped=%d failed=%d) "
