@@ -77,3 +77,79 @@ class AssignmentRepository:
             text("UPDATE users SET last_assigned_at = :when WHERE user_id = :user_id"),
             {"when": as_mysql_utc(when), "user_id": user_id},
         )
+
+    def get_ticket_snapshot_for_assign(self, ticket_id: int) -> Mapping[str, Any] | None:
+        """C024.02: ``FOR UPDATE`` snapshot of everything the assign/reassign
+        matrix needs -- current status, requester, current assignee's role,
+        SLA state, pending-user reason and category (to validate the target's
+        skill match).
+        """
+        return (
+            self.database.execute(
+                text(
+                    """
+                    SELECT t.ticket_id, t.status_code, t.requester_id, t.assignee_id,
+                           t.category_code, t.sla_status_code, t.sla_deadline,
+                           t.pending_user_reason,
+                           assignee.role_code AS assignee_role_code
+                    FROM tickets t
+                    LEFT JOIN users assignee ON assignee.user_id = t.assignee_id
+                    WHERE t.ticket_id = :ticket_id
+                    FOR UPDATE
+                    """
+                ),
+                {"ticket_id": ticket_id},
+            )
+            .mappings()
+            .one_or_none()
+        )
+
+    def get_active_vendor_request_org(self, ticket_id: int) -> int | None:
+        return self.database.execute(
+            text(
+                "SELECT vendor_org_id FROM vendor_requests "
+                "WHERE ticket_id = :ticket_id AND status = 'ACTIVE'"
+            ),
+            {"ticket_id": ticket_id},
+        ).scalar_one_or_none()
+
+    def get_target_engineer(self, user_id: int, category_code: str) -> Mapping[str, Any] | None:
+        """C024.03: the target's role, active/available flags, and whether
+        they have this ticket's category among their skills.
+        """
+        return (
+            self.database.execute(
+                text(
+                    """
+                    SELECT u.user_id, u.role_code, u.is_active, u.is_available,
+                           EXISTS(
+                               SELECT 1 FROM user_skills s
+                               WHERE s.user_id = u.user_id AND s.category_code = :category_code
+                           ) AS has_skill
+                    FROM users u
+                    WHERE u.user_id = :user_id
+                    """
+                ),
+                {"user_id": user_id, "category_code": category_code},
+            )
+            .mappings()
+            .one_or_none()
+        )
+
+    def apply_assignment(self, *, ticket_id: int, status_code: str, assignee_id: int) -> None:
+        """C024.04: write the matrix's chosen status + the new assignee.
+        Cycle/deadline and PENDING_USER's reason/timer are never touched
+        here -- the matrix's ``cycle_effect`` for every ASSIGN outcome is
+        ``KEEP`` (state_machine._eval_assign), so this repository method
+        has no cycle/pending-user columns to write in the first place.
+        """
+        self.database.execute(
+            text(
+                """
+                UPDATE tickets
+                SET status_code = :status_code, assignee_id = :assignee_id
+                WHERE ticket_id = :ticket_id
+                """
+            ),
+            {"status_code": status_code, "assignee_id": assignee_id, "ticket_id": ticket_id},
+        )

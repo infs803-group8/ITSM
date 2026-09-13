@@ -35,8 +35,13 @@ class AuditService:
         attachment_id: str | None = None,
         vendor_request_id: int | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> None:
-        """Append one audit event within the caller's own transaction.
+    ) -> int:
+        """Append one audit event within the caller's own transaction and
+        return its ``event_id`` (populated by SQLAlchemy's ``flush()``
+        inside ``AuditRepository.append`` even though nothing has
+        committed yet) -- C024 onward need this to fill
+        ``TicketActionData.event_id``. Every existing caller that ignored
+        the previous ``None`` return keeps working unchanged.
 
         Every other C-owned (and eventually A/B) service that changes a
         ticket calls this instead of writing to ``ticket_events`` itself,
@@ -44,7 +49,7 @@ class AuditService:
         cycle-guard uniqueness rule stay centrally maintained in one
         place. This method never commits.
         """
-        self.repository.append(
+        event = self.repository.append(
             ticket_id=ticket_id,
             event_type=event_type.value,
             scope=scope.value,
@@ -56,6 +61,7 @@ class AuditService:
             vendor_request_id=vendor_request_id,
             metadata=metadata,
         )
+        return event.event_id
 
     @staticmethod
     def _actor(row: Any) -> ActorSummary | None:
