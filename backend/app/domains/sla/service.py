@@ -23,7 +23,14 @@ from sqlalchemy.orm import Session
 
 from app.core.enums import EventScope, EventType
 from app.domains.audit.service import AuditService
-from app.domains.sla.cycle import CycleWindow, SlaConfig, first_cycle, next_cycle, user_response_deadline
+from app.domains.sla.cycle import (
+    CycleWindow,
+    SlaConfig,
+    auto_close_deadline,
+    first_cycle,
+    next_cycle,
+    user_response_deadline,
+)
 from app.domains.sla.repository import SlaRepository
 
 _ON_TRACK = "ON_TRACK"
@@ -92,6 +99,14 @@ class SlaCycleService:
         """
         hours = self.repository.get_user_response_hours()
         return user_response_deadline(started_at=now, user_response_hours=hours)
+
+    def compute_auto_close_deadline(self, *, resolved_at: datetime) -> datetime:
+        """The 7-day (168h) RESOLVED -> auto_close_at deadline (C032's
+        Confirm Resolution), read from ``service_config`` fresh every
+        call -- same rationale as ``compute_user_response_deadline``.
+        """
+        hours = self.repository.get_resolved_window_hours()
+        return auto_close_deadline(resolved_at=resolved_at, resolved_window_hours=hours)
 
     def pause_current_cycle(self, *, ticket_id: int, cycle_no: int, actor_id: int | None) -> None:
         """Request User Info: the current cycle ends as PAUSED; no new cycle

@@ -379,3 +379,48 @@ class WorkflowRepository:
                 "ticket_id": ticket_id,
             },
         )
+
+    def apply_confirm_resolution(
+        self,
+        *,
+        ticket_id: int,
+        resolution_type: str,
+        resolved_at: datetime,
+        auto_close_at: datetime,
+        last_resolved_assignee_id: int | None,
+    ) -> None:
+        """C032: PENDING_USER/RESOLUTION_CONFIRMATION -> RESOLVED.
+        ``resolution_summary`` was already written at Submit Resolution
+        (C031) and is left untouched; this fills the columns
+        ``chk_tickets_resolution``'s first branch additionally requires
+        for RESOLVED/CLOSED (``resolution_type``, ``resolved_at``,
+        ``auto_close_at``), clears ``pending_user_reason``/
+        ``pending_user_deadline`` back to NULL (``chk_tickets_pending_
+        user`` requires both NULL for any non-PENDING_USER status), and
+        saves ``last_resolved_assignee_id`` -- the same column
+        ``apply_auto_resolution`` (C018) already sets on its own
+        RESOLVED path, read back by C033's Reopen to prefer this
+        engineer if they are still available.
+        """
+        self.database.execute(
+            text(
+                """
+                UPDATE tickets
+                SET status_code = 'RESOLVED',
+                    pending_user_reason = NULL,
+                    pending_user_deadline = NULL,
+                    resolution_type = :resolution_type,
+                    resolved_at = :resolved_at,
+                    auto_close_at = :auto_close_at,
+                    last_resolved_assignee_id = :last_resolved_assignee_id
+                WHERE ticket_id = :ticket_id
+                """
+            ),
+            {
+                "resolution_type": resolution_type,
+                "resolved_at": as_mysql_utc(resolved_at),
+                "auto_close_at": as_mysql_utc(auto_close_at),
+                "last_resolved_assignee_id": last_resolved_assignee_id,
+                "ticket_id": ticket_id,
+            },
+        )

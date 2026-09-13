@@ -26,6 +26,7 @@ from app.domains.workflow.schema import (
 )
 from app.domains.workflow.serializer import ActorContext
 from app.domains.workflow.service import (
+    ConfirmResolutionService,
     EscalateTicketService,
     RequestUserInfoService,
     ResumeTicketService,
@@ -228,5 +229,30 @@ def resolve_ticket(
         ticket_id=ticket_id,
         actor=actor,
         action=AvailableAction.RESOLVE,
+        event_id=outcome.event_id,
+    )
+
+
+@router.post(
+    "/tickets/{id}/confirm-resolution",
+    response_model=TicketActionResponse,
+    operation_id="api29ConfirmResolution",
+    summary="Confirm resolution",
+    tags=["Resolution"],
+    responses=error_responses(401, 403, 404, 409, 503),
+)
+def confirm_resolution(
+    ticket_id: Annotated[int, Path(alias="id", ge=1)],
+    actor: Annotated[RequestContext, Depends(get_current_actor)],
+    database: Annotated[Session, Depends(get_db)],
+    _request_id: Annotated[UUID | None, Depends(request_id_header)],
+) -> TicketActionResponse:
+    outcome = ConfirmResolutionService(database).confirm_resolution(ticket_id=ticket_id, actor=actor)
+    database.commit()
+    return build_ticket_action_response(
+        database,
+        ticket_id=ticket_id,
+        actor=actor,
+        action=AvailableAction.CONFIRM_RESOLUTION,
         event_id=outcome.event_id,
     )

@@ -470,3 +470,81 @@ class SubmitResolutionService:
             event_id=event_id,
             vendor_cancelled_event_id=vendor_cancelled_event_id,
         )
+
+
+@dataclass(frozen=True)
+class ConfirmResolutionOutcome:
+    status: TicketStatus
+    event_id: int
+
+
+class ConfirmResolutionService:
+    """API-29 Confirm Resolution (C032): PENDING_USER/RESOLUTION_
+    CONFIRMATION -> RESOLVED, ticket requester only, no request body.
+    ``cycle_effect`` is "NONE" -- confirming touches no Engineering SLA
+    cycle bookkeeping at all (per action_engine's own vocabulary, "NONE"
+    is reserved for system-closure-shaped actions; this one just happens
+    to be requester-driven rather than a background job).
+
+    ``resolution_summary`` was already written at Submit Resolution
+    (C031); this only sets ``resolution_type=USER_CONFIRMED``,
+    ``resolved_at=now``, and the 7-day ``auto_close_at`` -- the value
+    C036's SLA monitor job will later read to auto-close the ticket if
+    the requester never explicitly closes it (C034).
+
+    ``DeadlineService.enforce_pending_user_not_expired``'s own docstring
+    names this action (alongside C027's Resume) as one of its two
+    callers -- the 120h User Timer could already have expired by the
+    time this request arrives, in which case the ticket auto-resolves
+    as AUTO_CONFIRMATION_TIMEOUT instead and this call reports
+    USER_RESPONSE_WINDOW_EXPIRED (409) rather than confirming a
+    resolution outcome that database state no longer matches. Missed on
+    first pass and caught while starting C033's Reopen, whose sibling
+    guard (``enforce_resolved_not_auto_closed``) made it obvious this one
+    had gone unused for its intended second caller.
+    """
+
+    def __init__(self, database) -> None:
+        self.database = database
+        self.repository = WorkflowRepository(database)
+        self.audit = AuditService(database)
+        self.sla = SlaCycleService(database)
+        self.deadlines = DeadlineService(database)
+
+    def confirm_resolution(
+        self, *, ticket_id: int, actor: RequestContext, now: datetime | None = None
+    ) -> ConfirmResolutionOutcome:
+        now = now or utc_now()
+        locked = lock_ticket_state(self.repository, ticket_id=ticket_id, now=now)
+        if locked.state.status == TicketStatus.PENDING_USER:
+            self.deadlines.enforce_pending_user_not_expired(
+                PendingUserSnapshot.from_row(locked.row),
+                now=now,
+                resolved_window_hours=self.sla.repository.get_resolved_window_hours(),
+            )
+
+        request = ActionRequest(
+            action=WorkflowAction.CONFIRM_RESOLUTION,
+            actor_role=UserRole(actor.role),
+            actor_id=actor.user_id,
+        )
+        result = evaluate_or_raise(locked.state, request)
+        assert result.cycle_effect == "NONE"
+        assert result.resolution_type is not None
+
+        auto_close_at = self.sla.compute_auto_close_deadline(resolved_at=now)
+        self.repository.apply_confirm_resolution(
+            ticket_id=ticket_id,
+            resolution_type=result.resolution_type.value,
+            resolved_at=now,
+            auto_close_at=auto_close_at,
+            last_resolved_assignee_id=locked.row["assignee_id"],
+        )
+
+        event_id = self.audit.append_event(
+            ticket_id=ticket_id,
+            event_type=EventType.RESOLUTION_CONFIRMED,
+            scope=EventScope.USER_VISIBLE,
+            actor_id=actor.user_id,
+        )
+        return ConfirmResolutionOutcome(status=result.target_status, event_id=event_id)
