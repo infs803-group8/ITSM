@@ -13,6 +13,7 @@ from app.common.request_context import RequestContext
 from app.core.clock import utc_now
 from app.core.enums import EventScope, EventType, UserRole
 from app.core.errors import ApplicationError
+from app.domains.assignment.repository import AssignmentRepository
 from app.domains.audit.service import AuditService
 from app.domains.sla.service import SlaCycleService
 from app.domains.workflow.action_engine import evaluate_or_raise, lock_ticket_state
@@ -260,3 +261,101 @@ class ResumeTicketService:
         return WorkflowActionOutcome(
             status=result.target_status, event_id=event_id, comment_id=comment_id
         )
+
+
+
+class EscalateTicketService:
+    """API-25 Tier 2 Escalation (C028): IN_PROGRESS -> ASSIGNED, current
+    Tier 1 assignee only, target must be an active, available Tier 2
+    engineer with the ticket's category skill. ``state_machine._eval_
+    escalate``'s ``cycle_effect`` is "KEEP" for this action, so no SLA
+    repository/service call is made here at all -- the current cycle,
+    deadline and any already-recorded overdue fact are left completely
+    untouched (C028.03's "保留原 Cycle/Deadline/逾期事实").
+
+    Reuses ``AssignmentRepository.get_target_engineer``/``apply_
+    assignment`` from C024 rather than duplicating them here -- both
+    actions ultimately write the same two ``tickets`` columns
+    (``status_code``, ``assignee_id``), and C owns both ``assignment/``
+    and ``workflow/``.
+    """
+
+    def __init__(self, database) -> None:
+        self.database = database
+        self.repository = WorkflowRepository(database)
+        self.assignment_repository = AssignmentRepository(database)
+        self.audit = AuditService(database)
+
+    def escalate(
+        self,
+        *,
+        ticket_id: int,
+        actor: RequestContext,
+        tier2_assignee_id: int,
+        reason: str | None,
+        now: datetime | None = None,
+    ) -> WorkflowActionOutcome:
+        now = now or utc_now()
+        locked = lock_ticket_state(self.repository, ticket_id=ticket_id, now=now)
+
+        # C028.02: target must be Active, Available, Tier 2, and skilled
+        # for this ticket's category. state_machine._eval_escalate only
+        # checks the target's ROLE (it has no concept of availability),
+        # so the Active/Available/skill parts of this check are this
+        # service's own responsibility, same division of labour as
+        # AssignTicketService's target-eligibility check (C024).
+        target = self.assignment_repository.get_target_engineer(
+            tier2_assignee_id, locked.row["category_code"]
+        )
+        target_role = UserRole(target["role_code"]) if target is not None else None
+        target_eligible = (
+            target is not None
+            and target_role == UserRole.ENGINEER_TIER2
+            and bool(target["is_active"])
+            and bool(target["is_available"])
+            and bool(target["has_skill"])
+        )
+        if not target_eligible:
+            raise ApplicationError(
+                "ASSIGNEE_NOT_ELIGIBLE",
+                "The selected assignee does not exist, is not an active and "
+                "available Tier 2 engineer, or lacks the required skill.",
+                422,
+            )
+
+        request = ActionRequest(
+            action=WorkflowAction.ESCALATE,
+            actor_role=UserRole(actor.role),
+            actor_id=actor.user_id,
+            target_assignee_role=target_role,
+        )
+        result = evaluate_or_raise(locked.state, request)
+        assert result.cycle_effect == "KEEP"
+
+        self.assignment_repository.apply_assignment(
+            ticket_id=ticket_id,
+            status_code=result.target_status.value,
+            assignee_id=tier2_assignee_id,
+        )
+
+        # C028.04 (Q04 decision): no invented ESCALATED EventType -- an
+        # escalation IS a reassignment, so it reuses REASSIGNED exactly
+        # like a Manager-driven API-21 reassignment does, with metadata
+        # recording who it moved from/to, the reason (if given), and an
+        # explicit "escalation": true flag so a reader of the timeline
+        # can still tell the two apart without a separate type.
+        metadata: dict[str, object] = {
+            "from_assignee_id": locked.row["assignee_id"],
+            "assignee_id": tier2_assignee_id,
+            "escalation": True,
+        }
+        if reason:
+            metadata["reason"] = reason
+        event_id = self.audit.append_event(
+            ticket_id=ticket_id,
+            event_type=EventType.REASSIGNED,
+            scope=EventScope.USER_VISIBLE,
+            actor_id=actor.user_id,
+            metadata=metadata,
+        )
+        return WorkflowActionOutcome(status=result.target_status, event_id=event_id)

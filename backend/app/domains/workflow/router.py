@@ -16,6 +16,7 @@ from app.core.enums import UserRole
 from app.core.errors import ApplicationError
 from app.domains.workflow.schema import (
     AvailableAction,
+    EscalateRequest,
     RequestUserInfoRequest,
     ResumeRequest,
     TicketActionData,
@@ -23,6 +24,7 @@ from app.domains.workflow.schema import (
 )
 from app.domains.workflow.serializer import ActorContext
 from app.domains.workflow.service import (
+    EscalateTicketService,
     RequestUserInfoService,
     ResumeTicketService,
     StartTicketService,
@@ -144,4 +146,34 @@ def resume_ticket(
         action=AvailableAction.RESUME,
         event_id=outcome.event_id,
         comment_id=outcome.comment_id,
+    )
+
+
+@router.post(
+    "/tickets/{id}/escalate",
+    response_model=TicketActionResponse,
+    operation_id="api25EscalateTicket",
+    summary="Escalate to Tier 2",
+    responses=error_responses(401, 403, 404, 409, 422, 503),
+)
+def escalate_ticket(
+    ticket_id: Annotated[int, Path(alias="id", ge=1)],
+    body: EscalateRequest,
+    actor: Annotated[RequestContext, Depends(get_current_actor)],
+    database: Annotated[Session, Depends(get_db)],
+    _request_id: Annotated[UUID | None, Depends(request_id_header)],
+) -> TicketActionResponse:
+    outcome = EscalateTicketService(database).escalate(
+        ticket_id=ticket_id,
+        actor=actor,
+        tier2_assignee_id=body.tier2_assignee_id,
+        reason=body.reason,
+    )
+    database.commit()
+    return _respond(
+        database,
+        ticket_id=ticket_id,
+        actor=actor,
+        action=AvailableAction.ESCALATE,
+        event_id=outcome.event_id,
     )

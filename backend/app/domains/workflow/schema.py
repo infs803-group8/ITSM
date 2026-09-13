@@ -162,6 +162,15 @@ class ResumeRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class EscalateRequest(BaseModel):
+    """docs/api/openapi.yaml: EscalateRequest (API-25)."""
+
+    tier2_assignee_id: int
+    reason: str | None = Field(default=None, min_length=1, max_length=1000)
+
+    model_config = {"extra": "forbid"}
+
+
 class AssignmentRequest(BaseModel):
     """docs/api/openapi.yaml: AssignmentRequest (API-21)."""
 
