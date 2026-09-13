@@ -167,3 +167,12 @@
 5. **Q10** 凭据轮换与账号发放流程——不阻塞开发，但存在真实安全风险，建议尽快处理。
 
 其余（Q01、Q05、Q07、Q08、Q09）C 可以按草案直接推进，不必等待团队会议。
+
+---
+
+## PR 追踪
+
+| 分支 | PR | CI 状态 | 备注 |
+|---|---|---|---|
+| `chore/WBS-C00-decision-log-risk-register` | #22 (draft) | 未知/待补 | 本文件与 risk-register.md 的初版；暂不合并，留 review 记录 |
+| `feature/WBS-C21-audit-domain` | #21 (draft) | 全部通过（Backend CI/test、Docker Build x2、OpenAPI Contract Check，2026-09-13） | Audit 域（API-32）实现；CI 通过说明沙盒环境里未能执行的 pytest 已在仓库真实 CI 中跑通 |
