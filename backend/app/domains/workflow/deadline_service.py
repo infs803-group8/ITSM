@@ -22,6 +22,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.core.enums import EventScope, EventType
+from app.core.errors import ApplicationError
 from app.domains.audit.service import AuditService
 from app.domains.sla.cycle import auto_close_deadline
 from app.domains.workflow.repository import WorkflowRepository
@@ -158,3 +159,53 @@ class DeadlineService:
             actor_id=None,
         )
         return AutoCloseOutcome(applied=True, closed_at=closed_at)
+
+    # ------------------------------------------------------------------
+    # C020: the "auto outcome already committed, now return a conflict"
+    # boundary. baseline §4.6: "API-24/API-29 在 120h 边界先执行 Auto
+    # Resolve，再返回 409 USER_RESPONSE_WINDOW_EXPIRED；API-30/API-31 在
+    # 7d 边界先执行 Auto Close，再返回 TICKET_CLOSED". These commit the
+    # auto outcome THEMSELVES (independent of whatever the caller's own
+    # transaction was about to do), then raise -- so a later rollback by
+    # the caller's exception handler can never undo a result this method
+    # has already reported as committed (C020.04).
+    # ------------------------------------------------------------------
+
+    def enforce_pending_user_not_expired(
+        self,
+        snapshot: PendingUserSnapshot,
+        *,
+        now: datetime,
+        resolved_window_hours: int,
+    ) -> None:
+        """Guard for any write action that requires an still-open
+        PENDING_USER window (API-24 Resume/Issue-Persists, API-29
+        Confirm). Returns normally when the window is still open;
+        otherwise commits the auto-resolve outcome and raises.
+        """
+        outcome = self.check_pending_user_timeout(
+            snapshot, now=now, resolved_window_hours=resolved_window_hours
+        )
+        if not outcome.applied:
+            return
+        self.database.commit()
+        raise ApplicationError(
+            "USER_RESPONSE_WINDOW_EXPIRED",
+            "The user response window has expired; the ticket was automatically resolved.",
+            409,
+        )
+
+    def enforce_resolved_not_auto_closed(self, snapshot: ResolvedSnapshot, *, now: datetime) -> None:
+        """Guard for API-30 Reopen / API-31 Manual Close. Returns normally
+        when the 7-day window is still open; otherwise commits the
+        auto-close outcome and raises.
+        """
+        outcome = self.check_resolved_auto_close_timeout(snapshot, now=now)
+        if not outcome.applied:
+            return
+        self.database.commit()
+        raise ApplicationError(
+            "TICKET_CLOSED",
+            "This ticket was automatically closed; it accepts no further actions.",
+            409,
+        )
