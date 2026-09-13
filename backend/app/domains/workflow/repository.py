@@ -102,6 +102,56 @@ class WorkflowRepository:
             return None
         return row
 
+    def get_pending_user_timeout_candidates(
+        self, *, now: datetime, limit: int, after_ticket_id: int = 0
+    ) -> list[int]:
+        """C036.02: bounded, keyset-paginated PENDING_USER tickets whose
+        (single, shared) 120h User Timer has already expired as of ``now``
+        -- candidates for DeadlineService.check_pending_user_timeout.
+        Matches idx_tickets_pending_user_job (status_code,
+        pending_user_deadline, ticket_id) exactly.
+        """
+        rows = self.database.execute(
+            text(
+                """
+                SELECT ticket_id
+                FROM tickets
+                WHERE ticket_id > :after_ticket_id
+                  AND status_code = 'PENDING_USER'
+                  AND pending_user_deadline <= :now
+                ORDER BY ticket_id
+                LIMIT :limit
+                """
+            ),
+            {"after_ticket_id": after_ticket_id, "now": as_mysql_utc(now), "limit": limit},
+        ).all()
+        return [int(row[0]) for row in rows]
+
+    def get_auto_close_candidates(
+        self, *, now: datetime, limit: int, after_ticket_id: int = 0
+    ) -> list[int]:
+        """C036.02: bounded, keyset-paginated RESOLVED tickets whose 7-day
+        auto_close_at has already passed as of ``now`` -- candidates for
+        DeadlineService.check_resolved_auto_close_timeout. Matches
+        idx_tickets_auto_close_job (status_code, auto_close_at, ticket_id)
+        exactly.
+        """
+        rows = self.database.execute(
+            text(
+                """
+                SELECT ticket_id
+                FROM tickets
+                WHERE ticket_id > :after_ticket_id
+                  AND status_code = 'RESOLVED'
+                  AND auto_close_at <= :now
+                ORDER BY ticket_id
+                LIMIT :limit
+                """
+            ),
+            {"after_ticket_id": after_ticket_id, "now": as_mysql_utc(now), "limit": limit},
+        ).all()
+        return [int(row[0]) for row in rows]
+
     def apply_initial_assignment(
         self, *, ticket_id: int, status: str, assignee_id: int | None
     ) -> None:

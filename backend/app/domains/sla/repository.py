@@ -9,6 +9,7 @@ another domain's concern.
 """
 
 from collections.abc import Mapping
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import text
@@ -130,3 +131,57 @@ class SlaRepository:
             text("UPDATE tickets SET sla_status_code = :sla_status WHERE ticket_id = :ticket_id"),
             {"sla_status": sla_status, "ticket_id": ticket_id},
         )
+
+    def get_threshold_scan_candidates(
+        self,
+        *,
+        now: datetime,
+        at_risk_cutoff: datetime,
+        limit: int,
+        after_ticket_id: int = 0,
+    ) -> list[int]:
+        """C036.02: bounded, keyset-paginated ticket ids whose Engineering
+        SLA has crossed the 80% or 100% mark as of ``now``.
+
+        ``at_risk_cutoff`` is ``now`` minus the config's 80%-of-cycle
+        offset (computed by the caller, which already has ``SlaConfig`` in
+        hand from ``get_config()`` -- this method stays a pure filter, no
+        duration math of its own). A ticket qualifies either because its
+        already-known ``sla_deadline`` (the 100% mark) has passed, or
+        because it is still ON_TRACK and its cycle started early enough
+        that 80% of the cycle has elapsed; a ticket already AT_RISK is
+        only re-offered here on account of the deadline branch, since its
+        80%-crossing was already handled by an earlier run.
+
+        Keyset (``ticket_id > after_ticket_id``), not OFFSET: C036.02
+        explicitly calls for pagination that stays stable while earlier
+        rows change between pages, same rationale as
+        ``attachments/cleanup_job.py``'s own cursor. Matches
+        ``idx_tickets_sla_monitor`` (sla_status_code, sla_deadline,
+        status_code, ticket_id).
+        """
+        rows = self.database.execute(
+            text(
+                """
+                SELECT ticket_id
+                FROM tickets
+                WHERE ticket_id > :after_ticket_id
+                  AND status_code IN
+                    ('UNASSIGNED', 'ASSIGNED', 'IN_PROGRESS', 'PENDING_VENDOR', 'REOPENED')
+                  AND sla_status_code IN ('ON_TRACK', 'AT_RISK')
+                  AND (
+                    sla_deadline <= :now
+                    OR (sla_status_code = 'ON_TRACK' AND sla_started_at <= :at_risk_cutoff)
+                  )
+                ORDER BY ticket_id
+                LIMIT :limit
+                """
+            ),
+            {
+                "after_ticket_id": after_ticket_id,
+                "now": as_mysql_utc(now),
+                "at_risk_cutoff": as_mysql_utc(at_risk_cutoff),
+                "limit": limit,
+            },
+        ).all()
+        return [int(row[0]) for row in rows]
