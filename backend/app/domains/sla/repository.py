@@ -38,6 +38,28 @@ class SlaRepository:
             at_risk_percent=int(row["at_risk_percent"]),
         )
 
+    def get_user_response_hours(self) -> int:
+        """The independent 120h User Timer's configured length (C026.03's
+        ``PENDING_USER``/``INFORMATION_REQUIRED`` deadline, and later
+        C031's ``RESOLUTION_CONFIRMATION`` deadline).
+
+        Deliberately its own single-column query rather than a field on
+        ``SlaConfig`` -- ``SlaConfig`` is already constructed positionally
+        by name in two C017 test files
+        (``tests/unit/sla/test_service.py``, ``tests/unit/sla/test_cycle.py``)
+        on an earlier, already-stacked branch; adding a required field
+        there would silently break those without editing files this task
+        has no other reason to touch.
+        """
+        row = (
+            self.database.execute(
+                text("SELECT user_response_hours FROM service_config WHERE config_id = 1")
+            )
+            .mappings()
+            .one()
+        )
+        return int(row["user_response_hours"])
+
     def get_cycle_state(self, ticket_id: int, *, for_update: bool = False) -> Mapping[str, Any] | None:
         lock = " FOR UPDATE" if for_update else ""
         return (

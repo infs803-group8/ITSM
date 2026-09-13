@@ -142,6 +142,14 @@ class TicketActionResponse(BaseModel):
     data: TicketActionData
 
 
+class RequestUserInfoRequest(BaseModel):
+    """docs/api/openapi.yaml: RequestUserInfoRequest (API-23)."""
+
+    message: str = Field(min_length=1, max_length=4000)
+
+    model_config = {"extra": "forbid"}
+
+
 class AssignmentRequest(BaseModel):
     """docs/api/openapi.yaml: AssignmentRequest (API-21)."""
 

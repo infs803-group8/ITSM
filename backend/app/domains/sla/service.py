@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.core.enums import EventScope, EventType
 from app.domains.audit.service import AuditService
-from app.domains.sla.cycle import CycleWindow, SlaConfig, first_cycle, next_cycle
+from app.domains.sla.cycle import CycleWindow, SlaConfig, first_cycle, next_cycle, user_response_deadline
 from app.domains.sla.repository import SlaRepository
 
 _ON_TRACK = "ON_TRACK"
@@ -83,6 +83,15 @@ class SlaCycleService:
             cycle_no=window.cycle_no,
             metadata={"deadline": window.deadline.isoformat()},
         )
+
+    def compute_user_response_deadline(self, *, now: datetime) -> datetime:
+        """The independent 120h User Timer deadline (C026.03), read from
+        ``service_config`` fresh every call rather than threaded through
+        ``SlaConfig`` -- see ``SlaRepository.get_user_response_hours``'s
+        own docstring for why.
+        """
+        hours = self.repository.get_user_response_hours()
+        return user_response_deadline(started_at=now, user_response_hours=hours)
 
     def pause_current_cycle(self, *, ticket_id: int, cycle_no: int, actor_id: int | None) -> None:
         """Request User Info: the current cycle ends as PAUSED; no new cycle

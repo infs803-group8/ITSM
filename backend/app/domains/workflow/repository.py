@@ -219,6 +219,45 @@ class WorkflowRepository:
             {"status_code": status_code, "ticket_id": ticket_id},
         )
 
+    def apply_pending_user_transition(
+        self,
+        *,
+        ticket_id: int,
+        status_code: str,
+        pending_user_reason: PendingUserReason,
+        pending_user_deadline: datetime,
+    ) -> None:
+        """C026.03/.04 (Request User Info) and, later, C031 (Submit
+        Resolution's PENDING_USER/RESOLUTION_CONFIRMATION branch): move
+        the ticket into PENDING_USER with its reason/deadline set.
+
+        No other column needs clearing here: ``chk_tickets_pending_user``
+        only constrains ``pending_user_reason``/``pending_user_deadline``
+        together with the status, and REQUEST_USER_INFO's only legal
+        source state (IN_PROGRESS) never has a resolution/closure column
+        populated to begin with, so there is nothing else on the row to
+        touch. Per Q09's draft decision, this deliberately does NOT touch
+        ``ticket_events`` -- any SLA_OVERDUE/SLA_AT_RISK history already
+        written for the paused cycle stays exactly as it is.
+        """
+        self.database.execute(
+            text(
+                """
+                UPDATE tickets
+                SET status_code = :status_code,
+                    pending_user_reason = :pending_user_reason,
+                    pending_user_deadline = :pending_user_deadline
+                WHERE ticket_id = :ticket_id
+                """
+            ),
+            {
+                "status_code": status_code,
+                "pending_user_reason": pending_user_reason.value,
+                "pending_user_deadline": as_mysql_utc(pending_user_deadline),
+                "ticket_id": ticket_id,
+            },
+        )
+
     def get_latest_vendor_request(self, ticket_id: int) -> Mapping[str, Any] | None:
         """The most recently created vendor request for this ticket, whatever
         its status -- Q03 (decision log, draft): ``TicketDetail.vendor_request``
