@@ -15,10 +15,10 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_actor, get_db, request_id_header
 from app.common.request_context import RequestContext
-from app.domains.vendor_workflow.schema import VendorRequestCreate
-from app.domains.vendor_workflow.service import RequestVendorService
+from app.domains.vendor_workflow.schema import VendorRequestCreate, VendorResponseRequest
+from app.domains.vendor_workflow.service import RequestVendorService, VendorResponseService
 from app.domains.workflow.router import build_ticket_action_response, error_responses
-from app.domains.workflow.schema import AvailableAction, TicketActionResponse
+from app.domains.workflow.schema import AvailableAction, TicketActionResponse, VendorResponseView
 
 router = APIRouter(tags=["Vendor Workflow"])
 
@@ -51,4 +51,38 @@ def create_vendor_request(
         actor=actor,
         action=AvailableAction.REQUEST_VENDOR,
         event_id=outcome.event_id,
+    )
+
+
+@router.post(
+    "/tickets/{id}/vendor-response",
+    response_model=TicketActionResponse,
+    operation_id="api27VendorResponse",
+    summary="Vendor response",
+    responses=error_responses(401, 403, 404, 409, 422, 503),
+)
+def submit_vendor_response(
+    ticket_id: Annotated[int, Path(alias="id", ge=1)],
+    body: VendorResponseRequest,
+    actor: Annotated[RequestContext, Depends(get_current_actor)],
+    database: Annotated[Session, Depends(get_db)],
+    _request_id: Annotated[UUID | None, Depends(request_id_header)],
+) -> TicketActionResponse:
+    outcome = VendorResponseService(database).respond(
+        ticket_id=ticket_id, actor=actor, message=body.message
+    )
+    database.commit()
+    vendor_response = VendorResponseView(
+        vendor_response_id=outcome.vendor_response_id,
+        vendor_request_id=outcome.vendor_request_id,
+        message=outcome.message,
+        created_at=outcome.created_at,
+    )
+    return build_ticket_action_response(
+        database,
+        ticket_id=ticket_id,
+        actor=actor,
+        action=AvailableAction.VENDOR_RESPONSE,
+        event_id=outcome.event_id,
+        vendor_response=vendor_response,
     )

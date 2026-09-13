@@ -18,3 +18,11 @@ class VendorRequestCreate(BaseModel):
     vendor_message: str = Field(min_length=1, max_length=4000)
 
     model_config = {"extra": "forbid"}
+
+
+class VendorResponseRequest(BaseModel):
+    """docs/api/openapi.yaml: VendorResponseRequest (API-27)."""
+
+    message: str = Field(min_length=1, max_length=4000)
+
+    model_config = {"extra": "forbid"}

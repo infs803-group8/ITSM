@@ -127,3 +127,95 @@ class RequestVendorService:
         return VendorRequestOutcome(
             status=result.target_status, event_id=event_id, vendor_request_id=vendor_request_id
         )
+
+
+@dataclass(frozen=True)
+class VendorResponseOutcome:
+    status: TicketStatus
+    event_id: int
+    vendor_response_id: int
+    vendor_request_id: int
+    message: str
+    created_at: datetime
+
+
+class VendorResponseService:
+    """API-27 Vendor Response (C030): PENDING_VENDOR -> IN_PROGRESS, the
+    matching EXTERNAL_VENDOR org only (``state_machine._eval_vendor_response``
+    rejects a vendor actor from any other organisation, even though the
+    ticket does have an active request). ``vendor_request_effect`` is
+    "MARK_RESPONDED" and ``cycle_effect`` is "KEEP" -- same as Request
+    Vendor, the Engineering SLA cycle is left untouched by this action.
+    """
+
+    def __init__(self, database) -> None:
+        self.database = database
+        self.workflow_repository = WorkflowRepository(database)
+        self.repository = VendorWorkflowRepository(database)
+        self.audit = AuditService(database)
+
+    def respond(
+        self,
+        *,
+        ticket_id: int,
+        actor: RequestContext,
+        message: str,
+        now: datetime | None = None,
+    ) -> VendorResponseOutcome:
+        now = now or utc_now()
+        locked = lock_ticket_state(self.workflow_repository, ticket_id=ticket_id, now=now)
+
+        # C030.01: no request ID in the body -- resolve the current
+        # ACTIVE request from the ticket itself via the same
+        # cross-domain-safe read C029.06 built for Member A, rather than
+        # trusting anything the vendor actor might supply.
+        binding = self.repository.get_active_binding(ticket_id=ticket_id)
+
+        request = ActionRequest(
+            action=WorkflowAction.VENDOR_RESPONSE,
+            actor_role=UserRole(actor.role),
+            actor_id=actor.user_id,
+            actor_vendor_org_id=actor.vendor_org_id,
+            active_vendor_request_org_id=locked.active_vendor_org_id,
+        )
+        result = evaluate_or_raise(locked.state, request)
+        assert result.vendor_request_effect == "MARK_RESPONDED"
+        assert result.cycle_effect == "KEEP"
+
+        # binding cannot be None here: state_machine already required
+        # has_active_vendor_request to be true for this action to reach
+        # `allowed=True` above, and has_active_vendor_request is derived
+        # from the very same ACTIVE row this reads.
+        assert binding is not None
+
+        self.repository.mark_request_responded(
+            vendor_request_id=binding.vendor_request_id, responded_at=now
+        )
+        vendor_response_id = self.repository.create_response(
+            vendor_request_id=binding.vendor_request_id,
+            responder_id=actor.user_id,
+            message=message,
+        )
+
+        # C030.04: PENDING_VENDOR -> IN_PROGRESS, Engineering SLA
+        # untouched (no sla.* call -- see this class's own docstring).
+        self.workflow_repository.apply_status_change(
+            ticket_id=ticket_id, status_code=result.target_status.value
+        )
+
+        event_id = self.audit.append_event(
+            ticket_id=ticket_id,
+            event_type=EventType.VENDOR_RESPONDED,
+            scope=EventScope.VENDOR_SCOPE,
+            actor_id=actor.user_id,
+            vendor_org_id=binding.vendor_org_id,
+            vendor_request_id=binding.vendor_request_id,
+        )
+        return VendorResponseOutcome(
+            status=result.target_status,
+            event_id=event_id,
+            vendor_response_id=vendor_response_id,
+            vendor_request_id=binding.vendor_request_id,
+            message=message,
+            created_at=now,
+        )

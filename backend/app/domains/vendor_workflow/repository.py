@@ -10,6 +10,7 @@ already built for C025's Start) rather than duplicated here.
 """
 
 from collections.abc import Mapping
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import text
@@ -101,3 +102,42 @@ class VendorWorkflowRepository:
             vendor_request_id=int(row["vendor_request_id"]),
             vendor_org_id=int(row["vendor_org_id"]),
         )
+
+    def mark_request_responded(self, *, vendor_request_id: int, responded_at: datetime) -> None:
+        """C030.02: flip the ACTIVE request to RESPONDED. This clears
+        ``active_ticket_guard`` (schema.sql: NULL unless status='ACTIVE'),
+        which is what actually lets a future Request Vendor (C029) start
+        a new ACTIVE request on this same ticket once it is back in
+        IN_PROGRESS -- there is no separate "release the guard" step.
+        """
+        self.database.execute(
+            text(
+                "UPDATE vendor_requests "
+                "SET status = 'RESPONDED', responded_at = :responded_at "
+                "WHERE vendor_request_id = :vendor_request_id"
+            ),
+            {"vendor_request_id": vendor_request_id, "responded_at": responded_at},
+        )
+
+    def create_response(
+        self, *, vendor_request_id: int, responder_id: int, message: str
+    ) -> int:
+        """C030.03: insert the one-and-only response row for this request
+        -- schema.sql's ``uq_vendor_responses_request`` unique key means a
+        second INSERT for the same ``vendor_request_id`` is itself
+        impossible at the database level, on top of state_machine's own
+        ``has_active_vendor_request`` check already refusing a second
+        Vendor Response once the request is no longer ACTIVE.
+        """
+        result = self.database.execute(
+            text(
+                "INSERT INTO vendor_responses (vendor_request_id, responder_id, message) "
+                "VALUES (:vendor_request_id, :responder_id, :message)"
+            ),
+            {
+                "vendor_request_id": vendor_request_id,
+                "responder_id": responder_id,
+                "message": message,
+            },
+        )
+        return int(result.lastrowid)
