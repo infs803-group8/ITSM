@@ -177,6 +177,48 @@ class WorkflowRepository:
             .one_or_none()
         )
 
+    def get_ticket_state_row(self, ticket_id: int) -> Mapping[str, Any] | None:
+        """``FOR UPDATE`` snapshot with everything needed to build
+        ``state_machine.TicketState``, shared by every C025-C034 write-path
+        action (Start, Request User Info, Resume, Escalate, Request
+        Vendor, Vendor Response, Submit Resolution, Confirm Resolution,
+        Reopen, Manual Close) via ``workflow/action_engine.lock_ticket_state``.
+        """
+        return (
+            self.database.execute(
+                text(
+                    """
+                    SELECT t.ticket_id, t.status_code, t.requester_id, t.assignee_id,
+                           t.category_code, t.sla_cycle_no, t.sla_status_code,
+                           t.sla_deadline, t.pending_user_reason, t.pending_user_deadline,
+                           t.resolution_summary, t.resolution_type, t.resolved_at,
+                           t.auto_close_at, t.closure_type, t.closed_at,
+                           assignee.role_code AS assignee_role_code
+                    FROM tickets t
+                    LEFT JOIN users assignee ON assignee.user_id = t.assignee_id
+                    WHERE t.ticket_id = :ticket_id
+                    FOR UPDATE
+                    """
+                ),
+                {"ticket_id": ticket_id},
+            )
+            .mappings()
+            .one_or_none()
+        )
+
+    def apply_status_change(self, *, ticket_id: int, status_code: str) -> None:
+        """Narrow, single-column status update for actions whose
+        ``TransitionResult.cycle_effect`` is ``KEEP`` and which touch no
+        other column -- Start (C025) is the first and simplest of these.
+        Actions that also change ``pending_user_*``/resolution/closure
+        columns get their own, more specific repository methods instead
+        of overloading this one with optional fields.
+        """
+        self.database.execute(
+            text("UPDATE tickets SET status_code = :status_code WHERE ticket_id = :ticket_id"),
+            {"status_code": status_code, "ticket_id": ticket_id},
+        )
+
     def get_latest_vendor_request(self, ticket_id: int) -> Mapping[str, Any] | None:
         """The most recently created vendor request for this ticket, whatever
         its status -- Q03 (decision log, draft): ``TicketDetail.vendor_request``
