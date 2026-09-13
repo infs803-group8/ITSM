@@ -18,6 +18,7 @@ from app.domains.workflow.schema import (
     AvailableAction,
     EscalateRequest,
     RequestUserInfoRequest,
+    ResolveRequest,
     ResumeRequest,
     TicketActionData,
     TicketActionResponse,
@@ -29,6 +30,7 @@ from app.domains.workflow.service import (
     RequestUserInfoService,
     ResumeTicketService,
     StartTicketService,
+    SubmitResolutionService,
 )
 from app.domains.workflow.ticket_detail import assemble_ticket_detail
 
@@ -198,5 +200,33 @@ def escalate_ticket(
         ticket_id=ticket_id,
         actor=actor,
         action=AvailableAction.ESCALATE,
+        event_id=outcome.event_id,
+    )
+
+
+@router.post(
+    "/tickets/{id}/resolve",
+    response_model=TicketActionResponse,
+    operation_id="api28ResolveTicket",
+    summary="Submit resolution",
+    tags=["Resolution"],
+    responses=error_responses(401, 403, 404, 409, 422, 503),
+)
+def resolve_ticket(
+    ticket_id: Annotated[int, Path(alias="id", ge=1)],
+    body: ResolveRequest,
+    actor: Annotated[RequestContext, Depends(get_current_actor)],
+    database: Annotated[Session, Depends(get_db)],
+    _request_id: Annotated[UUID | None, Depends(request_id_header)],
+) -> TicketActionResponse:
+    outcome = SubmitResolutionService(database).submit_resolution(
+        ticket_id=ticket_id, actor=actor, resolution_summary=body.resolution_summary
+    )
+    database.commit()
+    return build_ticket_action_response(
+        database,
+        ticket_id=ticket_id,
+        actor=actor,
+        action=AvailableAction.RESOLVE,
         event_id=outcome.event_id,
     )

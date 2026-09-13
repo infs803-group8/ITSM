@@ -227,9 +227,8 @@ class WorkflowRepository:
         pending_user_reason: PendingUserReason,
         pending_user_deadline: datetime,
     ) -> None:
-        """C026.03/.04 (Request User Info) and, later, C031 (Submit
-        Resolution's PENDING_USER/RESOLUTION_CONFIRMATION branch): move
-        the ticket into PENDING_USER with its reason/deadline set.
+        """C026.03/.04 (Request User Info): move the ticket into
+        PENDING_USER with its reason/deadline set.
 
         No other column needs clearing here: ``chk_tickets_pending_user``
         only constrains ``pending_user_reason``/``pending_user_deadline``
@@ -239,6 +238,13 @@ class WorkflowRepository:
         touch. Per Q09's draft decision, this deliberately does NOT touch
         ``ticket_events`` -- any SLA_OVERDUE/SLA_AT_RISK history already
         written for the paused cycle stays exactly as it is.
+
+        C031 (Submit Resolution) reaches PENDING_USER/RESOLUTION_
+        CONFIRMATION too, but also needs to SET ``resolution_summary`` in
+        the same UPDATE (``chk_tickets_resolution`` requires it non-null
+        the moment ``pending_user_reason = 'RESOLUTION_CONFIRMATION'`` is
+        set) -- see ``apply_submit_resolution`` below instead of
+        overloading this method with an optional resolution field.
         """
         self.database.execute(
             text(
@@ -254,6 +260,42 @@ class WorkflowRepository:
                 "status_code": status_code,
                 "pending_user_reason": pending_user_reason.value,
                 "pending_user_deadline": as_mysql_utc(pending_user_deadline),
+                "ticket_id": ticket_id,
+            },
+        )
+
+    def apply_submit_resolution(
+        self,
+        *,
+        ticket_id: int,
+        pending_user_deadline: datetime,
+        resolution_summary: str,
+    ) -> None:
+        """C031: move the ticket to PENDING_USER/RESOLUTION_CONFIRMATION
+        AND set ``resolution_summary`` in the same UPDATE --
+        ``chk_tickets_resolution``'s middle branch requires
+        ``resolution_summary IS NOT NULL`` together with
+        ``pending_user_reason = 'RESOLUTION_CONFIRMATION'`` (and
+        ``resolution_type``/``resolved_at``/``auto_close_at`` all still
+        NULL at this point -- those are C032's job at Confirm
+        Resolution), so this cannot reuse ``apply_pending_user_transition``
+        as originally sketched in that method's own docstring.
+        """
+        self.database.execute(
+            text(
+                """
+                UPDATE tickets
+                SET status_code = 'PENDING_USER',
+                    pending_user_reason = :pending_user_reason,
+                    pending_user_deadline = :pending_user_deadline,
+                    resolution_summary = :resolution_summary
+                WHERE ticket_id = :ticket_id
+                """
+            ),
+            {
+                "pending_user_reason": PendingUserReason.RESOLUTION_CONFIRMATION.value,
+                "pending_user_deadline": as_mysql_utc(pending_user_deadline),
+                "resolution_summary": resolution_summary,
                 "ticket_id": ticket_id,
             },
         )

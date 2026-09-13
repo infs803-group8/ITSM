@@ -7,7 +7,7 @@ and record exactly one audit event. Never commits -- the router commits.
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.common.request_context import RequestContext
 from app.core.clock import utc_now
@@ -19,6 +19,7 @@ from app.domains.sla.service import SlaCycleService
 from app.domains.workflow.action_engine import evaluate_or_raise, lock_ticket_state
 from app.domains.workflow.comment_gateway import insert_workflow_comment
 from app.domains.workflow.deadline_service import DeadlineService, PendingUserSnapshot
+from app.domains.vendor_workflow.repository import VendorWorkflowRepository
 from app.domains.workflow.repository import WorkflowRepository
 from app.domains.workflow.state_machine import ActionRequest, TicketStatus, WorkflowAction
 
@@ -359,3 +360,113 @@ class EscalateTicketService:
             metadata=metadata,
         )
         return WorkflowActionOutcome(status=result.target_status, event_id=event_id)
+
+
+@dataclass(frozen=True)
+class SubmitResolutionOutcome:
+    status: TicketStatus
+    event_id: int
+    vendor_cancelled_event_id: int | None = None
+
+
+class SubmitResolutionService:
+    """API-28 Submit Resolution (C031): IN_PROGRESS or PENDING_VENDOR ->
+    PENDING_USER/RESOLUTION_CONFIRMATION, current assignee only (the
+    PENDING_VENDOR branch additionally requires the current Tier 2
+    assignee specifically -- state_machine._eval_submit_resolution's own
+    role check). ``cycle_effect`` is "KEEP" in both branches -- resolving
+    does not itself pause or restart the Engineering SLA cycle; that is
+    Confirm Resolution's (C032) job.
+
+    The PENDING_VENDOR branch's ``vendor_request_effect`` is
+    "CANCEL_ACTIVE" -- the assignee is resolving without waiting on the
+    vendor's answer, so the now-moot ACTIVE request is cancelled rather
+    than left dangling (and cancelling it clears the generated
+    ``active_ticket_guard`` column, exactly like C030's MARK_RESPONDED
+    path does, so a later ticket can still get its own new ACTIVE
+    request). That branch writes two audit events -- VENDOR_CANCELLED
+    then RESOLUTION_SUBMITTED -- for the same reason C026/C027 write two
+    events for a combined comment+outcome action:
+    ``chk_ticket_events_vendor_scope`` requires ``vendor_org_id`` set
+    exactly when ``scope = 'VENDOR_SCOPE'``, so the vendor-scoped
+    cancellation notice and the user-visible resolution notice cannot be
+    the same row.
+    """
+
+    def __init__(self, database) -> None:
+        self.database = database
+        self.repository = WorkflowRepository(database)
+        self.vendor_repository = VendorWorkflowRepository(database)
+        self.audit = AuditService(database)
+        self.sla = SlaCycleService(database)
+
+    def submit_resolution(
+        self,
+        *,
+        ticket_id: int,
+        actor: RequestContext,
+        resolution_summary: str,
+        now: datetime | None = None,
+    ) -> SubmitResolutionOutcome:
+        now = now or utc_now()
+        locked = lock_ticket_state(self.repository, ticket_id=ticket_id, now=now)
+
+        request = ActionRequest(
+            action=WorkflowAction.SUBMIT_RESOLUTION,
+            actor_role=UserRole(actor.role),
+            actor_id=actor.user_id,
+        )
+        result = evaluate_or_raise(locked.state, request)
+        assert result.cycle_effect == "KEEP"
+
+        vendor_cancelled_event_id = None
+        if result.vendor_request_effect == "CANCEL_ACTIVE":
+            binding = self.vendor_repository.get_active_binding(ticket_id=ticket_id)
+            # Cannot be None here: state_machine only reaches this branch
+            # from PENDING_VENDOR, which -- per chk_tickets_assignee_by_
+            # status and this ticket's own has_active_vendor_request --
+            # always has exactly one ACTIVE request to cancel.
+            assert binding is not None
+            self.vendor_repository.cancel_active_request(
+                vendor_request_id=binding.vendor_request_id,
+                cancelled_at=now,
+                cancelled_by_id=actor.user_id,
+                cancellation_reason="Resolved without waiting on vendor response.",
+            )
+            vendor_cancelled_event_id = self.audit.append_event(
+                ticket_id=ticket_id,
+                event_type=EventType.VENDOR_CANCELLED,
+                scope=EventScope.VENDOR_SCOPE,
+                actor_id=actor.user_id,
+                vendor_org_id=binding.vendor_org_id,
+                vendor_request_id=binding.vendor_request_id,
+            )
+
+        # Bug caught before pushing: this must be the 120h User Timer
+        # (get_user_response_hours), the same config value C026's Request
+        # User Info uses for its own PENDING_USER deadline -- NOT
+        # get_resolved_window_hours (168h/7-day), which is the RESOLVED
+        # -> auto_close_at window C032's Confirm Resolution needs
+        # instead. Caught by re-reading sla/repository.py's own
+        # docstrings while starting C032, which name both methods'
+        # intended callers explicitly.
+        pending_user_deadline = now + timedelta(
+            hours=self.sla.repository.get_user_response_hours()
+        )
+        self.repository.apply_submit_resolution(
+            ticket_id=ticket_id,
+            pending_user_deadline=pending_user_deadline,
+            resolution_summary=resolution_summary,
+        )
+
+        event_id = self.audit.append_event(
+            ticket_id=ticket_id,
+            event_type=EventType.RESOLUTION_SUBMITTED,
+            scope=EventScope.USER_VISIBLE,
+            actor_id=actor.user_id,
+        )
+        return SubmitResolutionOutcome(
+            status=result.target_status,
+            event_id=event_id,
+            vendor_cancelled_event_id=vendor_cancelled_event_id,
+        )

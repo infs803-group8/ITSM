@@ -141,3 +141,33 @@ class VendorWorkflowRepository:
             },
         )
         return int(result.lastrowid)
+
+
+    def cancel_active_request(
+        self,
+        *,
+        vendor_request_id: int,
+        cancelled_at: datetime,
+        cancelled_by_id: int,
+        cancellation_reason: str | None,
+    ) -> None:
+        """C031's PENDING_VENDOR branch (Submit Resolution while waiting
+        on a vendor cancels the active request rather than leaving it
+        dangling). Same guard shape as ``mark_request_responded`` -- this
+        also clears ``active_ticket_guard`` since it moves ``status`` off
+        'ACTIVE'.
+        """
+        self.database.execute(
+            text(
+                "UPDATE vendor_requests "
+                "SET status = 'CANCELLED', cancelled_at = :cancelled_at, "
+                "cancelled_by_id = :cancelled_by_id, cancellation_reason = :cancellation_reason "
+                "WHERE vendor_request_id = :vendor_request_id"
+            ),
+            {
+                "vendor_request_id": vendor_request_id,
+                "cancelled_at": cancelled_at,
+                "cancelled_by_id": cancelled_by_id,
+                "cancellation_reason": cancellation_reason,
+            },
+        )

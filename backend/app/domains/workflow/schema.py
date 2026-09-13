@@ -171,6 +171,14 @@ class EscalateRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class ResolveRequest(BaseModel):
+    """docs/api/openapi.yaml: ResolveRequest (API-28)."""
+
+    resolution_summary: str = Field(min_length=1, max_length=5000)
+
+    model_config = {"extra": "forbid"}
+
+
 class AssignmentRequest(BaseModel):
     """docs/api/openapi.yaml: AssignmentRequest (API-21)."""
 
