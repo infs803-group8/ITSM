@@ -125,12 +125,15 @@ class DeadlineServiceFake:
         self.auto_close_calls: list[int] = []
 
     def check_pending_user_timeout(self, snapshot, *, now, resolved_window_hours):
-        self.pending_user_calls.append(snapshot["ticket_id"])
-        return self.pending_user_outcomes[snapshot["ticket_id"]]
+        # snapshot is a real PendingUserSnapshot dataclass (built by
+        # PendingUserSnapshot.from_row in production code), not a dict --
+        # attribute access, not subscripting.
+        self.pending_user_calls.append(snapshot.ticket_id)
+        return self.pending_user_outcomes[snapshot.ticket_id]
 
     def check_resolved_auto_close_timeout(self, snapshot, *, now):
-        self.auto_close_calls.append(snapshot["ticket_id"])
-        return self.auto_close_outcomes[snapshot["ticket_id"]]
+        self.auto_close_calls.append(snapshot.ticket_id)
+        return self.auto_close_outcomes[snapshot.ticket_id]
 
 
 def job_with(*, sla=None, workflow_repository=None, deadlines=None, database=None):
