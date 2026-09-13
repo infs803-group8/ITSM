@@ -17,11 +17,16 @@ from app.core.errors import ApplicationError
 from app.domains.workflow.schema import (
     AvailableAction,
     RequestUserInfoRequest,
+    ResumeRequest,
     TicketActionData,
     TicketActionResponse,
 )
 from app.domains.workflow.serializer import ActorContext
-from app.domains.workflow.service import RequestUserInfoService, StartTicketService
+from app.domains.workflow.service import (
+    RequestUserInfoService,
+    ResumeTicketService,
+    StartTicketService,
+)
 from app.domains.workflow.ticket_detail import assemble_ticket_detail
 
 router = APIRouter(tags=["Workflow"])
@@ -109,6 +114,34 @@ def request_user_info(
         ticket_id=ticket_id,
         actor=actor,
         action=AvailableAction.REQUEST_USER_INFO,
+        event_id=outcome.event_id,
+        comment_id=outcome.comment_id,
+    )
+
+
+@router.post(
+    "/tickets/{id}/resume",
+    response_model=TicketActionResponse,
+    operation_id="api24ResumeTicket",
+    summary="Resume ticket",
+    responses=error_responses(401, 403, 404, 409, 422, 503),
+)
+def resume_ticket(
+    ticket_id: Annotated[int, Path(alias="id", ge=1)],
+    body: ResumeRequest,
+    actor: Annotated[RequestContext, Depends(get_current_actor)],
+    database: Annotated[Session, Depends(get_db)],
+    _request_id: Annotated[UUID | None, Depends(request_id_header)],
+) -> TicketActionResponse:
+    outcome = ResumeTicketService(database).resume(
+        ticket_id=ticket_id, actor=actor, message=body.message
+    )
+    database.commit()
+    return _respond(
+        database,
+        ticket_id=ticket_id,
+        actor=actor,
+        action=AvailableAction.RESUME,
         event_id=outcome.event_id,
         comment_id=outcome.comment_id,
     )

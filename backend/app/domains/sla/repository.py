@@ -60,6 +60,23 @@ class SlaRepository:
         )
         return int(row["user_response_hours"])
 
+    def get_resolved_window_hours(self) -> int:
+        """The 168h (7-day) RESOLVED->CLOSED auto-close window length
+        (C027.02/.06's shared ``DeadlineService.enforce_pending_user_not_
+        expired`` call needs it to compute the auto-resolve outcome's own
+        ``auto_close_at`` when the 120h User Timer has already expired).
+
+        Same single-column-query rationale as ``get_user_response_hours``.
+        """
+        row = (
+            self.database.execute(
+                text("SELECT resolved_window_hours FROM service_config WHERE config_id = 1")
+            )
+            .mappings()
+            .one()
+        )
+        return int(row["resolved_window_hours"])
+
     def get_cycle_state(self, ticket_id: int, *, for_update: bool = False) -> Mapping[str, Any] | None:
         lock = " FOR UPDATE" if for_update else ""
         return (

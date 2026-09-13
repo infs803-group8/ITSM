@@ -17,6 +17,7 @@ from app.domains.audit.service import AuditService
 from app.domains.sla.service import SlaCycleService
 from app.domains.workflow.action_engine import evaluate_or_raise, lock_ticket_state
 from app.domains.workflow.comment_gateway import insert_workflow_comment
+from app.domains.workflow.deadline_service import DeadlineService, PendingUserSnapshot
 from app.domains.workflow.repository import WorkflowRepository
 from app.domains.workflow.state_machine import ActionRequest, TicketStatus, WorkflowAction
 
@@ -162,6 +163,99 @@ class RequestUserInfoService:
             scope=EventScope.USER_VISIBLE,
             actor_id=actor.user_id,
             metadata={"pending_user_deadline": deadline.isoformat()},
+        )
+        return WorkflowActionOutcome(
+            status=result.target_status, event_id=event_id, comment_id=comment_id
+        )
+
+
+class ResumeTicketService:
+    """API-24 Resume / Issue Persists (C027): PENDING_USER (either
+    reason) -> IN_PROGRESS, ticket requester only. Shares one endpoint
+    and one state-machine action (``WorkflowAction.USER_RESUME``) for
+    both baseline-§4.3 flows, since they have the identical effect.
+    """
+
+    def __init__(self, database) -> None:
+        self.database = database
+        self.repository = WorkflowRepository(database)
+        self.audit = AuditService(database)
+        self.sla = SlaCycleService(database)
+        self.deadlines = DeadlineService(database)
+
+    def resume(
+        self,
+        *,
+        ticket_id: int,
+        actor: RequestContext,
+        message: str,
+        now: datetime | None = None,
+    ) -> WorkflowActionOutcome:
+        now = now or utc_now()
+        if not message.strip():
+            raise ApplicationError("VALIDATION_ERROR", "message must not be blank.", 422)
+
+        locked = lock_ticket_state(self.repository, ticket_id=ticket_id, now=now)
+
+        # C027.02/.06: unified Deadline Enforcement runs first, before any
+        # actor/state validation -- an already-expired 120h window commits
+        # its own auto-resolve outcome and raises USER_RESPONSE_WINDOW_
+        # EXPIRED regardless of who called this or which of the two
+        # PENDING_USER reasons is active. Only meaningful when the ticket
+        # is actually PENDING_USER; any other source status is left to
+        # evaluate_or_raise below to reject as INVALID_STATUS_TRANSITION.
+        if locked.state.status == TicketStatus.PENDING_USER:
+            self.deadlines.enforce_pending_user_not_expired(
+                PendingUserSnapshot.from_row(locked.row),
+                now=now,
+                resolved_window_hours=self.sla.repository.get_resolved_window_hours(),
+            )
+
+        request = ActionRequest(
+            action=WorkflowAction.USER_RESUME,
+            actor_role=UserRole(actor.role),
+            actor_id=actor.user_id,
+        )
+        result = evaluate_or_raise(locked.state, request)
+        assert result.cycle_effect == "NEW"
+
+        # C027.03/.04: one shared transition for both Resume and Issue
+        # Persists -- see WorkflowRepository.apply_resume's own docstring
+        # for why clearing the resolution_* columns is safe/required for
+        # both paths.
+        self.repository.apply_resume(ticket_id=ticket_id)
+
+        comment_id = insert_workflow_comment(
+            self.database,
+            ticket_id=ticket_id,
+            author_id=actor.user_id,
+            message=message,
+            workflow_action=WorkflowAction.USER_RESUME.value,
+        )
+        self.audit.append_event(
+            ticket_id=ticket_id,
+            event_type=EventType.COMMENT_ADDED,
+            scope=EventScope.USER_VISIBLE,
+            actor_id=actor.user_id,
+            comment_id=comment_id,
+        )
+
+        # C027.05: fresh 48h cycle, cycle_no = previous + 1 -- writes its
+        # own SLA_CYCLE_STARTED event.
+        config = self.sla.load_config()
+        self.sla.start_new_cycle(
+            ticket_id=ticket_id,
+            previous_cycle_no=locked.row["sla_cycle_no"],
+            actor_id=actor.user_id,
+            now=now,
+            config=config,
+        )
+
+        event_id = self.audit.append_event(
+            ticket_id=ticket_id,
+            event_type=EventType.USER_RESUMED,
+            scope=EventScope.USER_VISIBLE,
+            actor_id=actor.user_id,
         )
         return WorkflowActionOutcome(
             status=result.target_status, event_id=event_id, comment_id=comment_id

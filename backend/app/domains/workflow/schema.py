@@ -150,6 +150,18 @@ class RequestUserInfoRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class ResumeRequest(BaseModel):
+    """docs/api/openapi.yaml: ResumeRequest (API-24). Covers both Resume
+    (from INFORMATION_REQUIRED) and Issue Persists (from
+    RESOLUTION_CONFIRMATION) -- one request shape for the one endpoint,
+    same as ``state_machine.WorkflowAction.USER_RESUME``.
+    """
+
+    message: str = Field(min_length=1, max_length=4000)
+
+    model_config = {"extra": "forbid"}
+
+
 class AssignmentRequest(BaseModel):
     """docs/api/openapi.yaml: AssignmentRequest (API-21)."""
 

@@ -258,6 +258,41 @@ class WorkflowRepository:
             },
         )
 
+    def apply_resume(self, *, ticket_id: int) -> None:
+        """C027.03/.04 (Resume and Issue Persists share this single
+        transition -- baseline §4.2/4.3 give both the identical effect):
+        PENDING_USER -> IN_PROGRESS, clearing pending_user_reason/
+        deadline. Also clears resolution_summary/resolution_type/
+        resolved_at/auto_close_at unconditionally -- ``chk_tickets_
+        resolution``'s third branch requires all four NULL for any status
+        other than RESOLVED/CLOSED/PENDING_USER-with-RESOLUTION_
+        CONFIRMATION, and IN_PROGRESS is such a status. This is a no-op
+        for the INFORMATION_REQUIRED path (those columns are already
+        NULL there) and the actual clear for the RESOLUTION_CONFIRMATION
+        (Issue Persists) path -- C027.04's "清空当前待确认方案字段" -- the
+        engineer's superseded resolution_summary is never carried forward
+        into the new IN_PROGRESS cycle. Nothing in ticket_events is
+        touched, so the RESOLUTION_SUBMITTED event for that superseded
+        attempt (and any earlier SLA history) remains queryable exactly
+        as C027.04's "保留历史" requires.
+        """
+        self.database.execute(
+            text(
+                """
+                UPDATE tickets
+                SET status_code = 'IN_PROGRESS',
+                    pending_user_reason = NULL,
+                    pending_user_deadline = NULL,
+                    resolution_summary = NULL,
+                    resolution_type = NULL,
+                    resolved_at = NULL,
+                    auto_close_at = NULL
+                WHERE ticket_id = :ticket_id
+                """
+            ),
+            {"ticket_id": ticket_id},
+        )
+
     def get_latest_vendor_request(self, ticket_id: int) -> Mapping[str, Any] | None:
         """The most recently created vendor request for this ticket, whatever
         its status -- Q03 (decision log, draft): ``TicketDetail.vendor_request``
