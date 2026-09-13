@@ -14,11 +14,12 @@ from app.core.clock import utc_now
 from app.core.enums import EventScope, EventType, UserRole
 from app.core.errors import ApplicationError
 from app.domains.assignment.repository import AssignmentRepository
+from app.domains.assignment.service import AssignmentService
 from app.domains.audit.service import AuditService
 from app.domains.sla.service import SlaCycleService
 from app.domains.workflow.action_engine import evaluate_or_raise, lock_ticket_state
 from app.domains.workflow.comment_gateway import insert_workflow_comment
-from app.domains.workflow.deadline_service import DeadlineService, PendingUserSnapshot
+from app.domains.workflow.deadline_service import DeadlineService, PendingUserSnapshot, ResolvedSnapshot
 from app.domains.vendor_workflow.repository import VendorWorkflowRepository
 from app.domains.workflow.repository import WorkflowRepository
 from app.domains.workflow.state_machine import ActionRequest, TicketStatus, WorkflowAction
@@ -548,3 +549,131 @@ class ConfirmResolutionService:
             actor_id=actor.user_id,
         )
         return ConfirmResolutionOutcome(status=result.target_status, event_id=event_id)
+
+
+@dataclass(frozen=True)
+class ReopenOutcome:
+    status: TicketStatus
+    event_id: int
+    comment_id: int
+    assignee_id: int | None
+
+
+class ReopenTicketService:
+    """API-30 Reopen (C033): RESOLVED -> REOPENED, ticket requester only,
+    before ``auto_close_at`` (``DeadlineService.enforce_resolved_not_auto_
+    closed``'s own docstring names this action, alongside Manual Close,
+    as its two callers). ``cycle_effect`` is "NEW" -- reopening starts a
+    fresh Engineering SLA cycle, same shape as C027's Resume.
+
+    ``last_resolved_assignee_id`` (set by C032's Confirm Resolution, and
+    by C018's auto-resolve paths) is this service's own preference, not
+    a state_machine concept: if that engineer is still active/available/
+    skilled for the ticket's category, they keep the ticket; otherwise
+    this falls back to the same ``AssignmentService.assign_new_ticket``
+    selection C022/C023 use for a brand-new ticket, which itself may
+    still return ``None`` (no eligible engineer at all) -- Reopen still
+    succeeds in that case, just with no assignee set yet.
+    """
+
+    def __init__(self, database) -> None:
+        self.database = database
+        self.repository = WorkflowRepository(database)
+        self.assignment_repository = AssignmentRepository(database)
+        self.assignment_service = AssignmentService(database)
+        self.audit = AuditService(database)
+        self.sla = SlaCycleService(database)
+        self.deadlines = DeadlineService(database)
+
+    def reopen(
+        self,
+        *,
+        ticket_id: int,
+        actor: RequestContext,
+        reason: str,
+        now: datetime | None = None,
+    ) -> ReopenOutcome:
+        now = now or utc_now()
+        locked = lock_ticket_state(self.repository, ticket_id=ticket_id, now=now)
+        if locked.state.status == TicketStatus.RESOLVED:
+            self.deadlines.enforce_resolved_not_auto_closed(
+                ResolvedSnapshot.from_row(locked.row), now=now
+            )
+
+        request = ActionRequest(
+            action=WorkflowAction.REOPEN,
+            actor_role=UserRole(actor.role),
+            actor_id=actor.user_id,
+        )
+        result = evaluate_or_raise(locked.state, request)
+        assert result.cycle_effect == "NEW"
+
+        previous_assignee_id = locked.row["last_resolved_assignee_id"]
+        assignee_id = self._pick_assignee(
+            ticket_id=ticket_id,
+            previous_assignee_id=previous_assignee_id,
+            category_code=locked.row["category_code"],
+        )
+
+        self.repository.apply_reopen(ticket_id=ticket_id, assignee_id=assignee_id)
+
+        comment_id = insert_workflow_comment(
+            self.database,
+            ticket_id=ticket_id,
+            author_id=actor.user_id,
+            message=reason,
+            workflow_action=WorkflowAction.REOPEN.value,
+        )
+        self.audit.append_event(
+            ticket_id=ticket_id,
+            event_type=EventType.COMMENT_ADDED,
+            scope=EventScope.USER_VISIBLE,
+            actor_id=actor.user_id,
+            comment_id=comment_id,
+        )
+
+        config = self.sla.load_config()
+        self.sla.start_new_cycle(
+            ticket_id=ticket_id,
+            previous_cycle_no=locked.row["sla_cycle_no"],
+            actor_id=actor.user_id,
+            now=now,
+            config=config,
+        )
+
+        event_id = self.audit.append_event(
+            ticket_id=ticket_id,
+            event_type=EventType.TICKET_REOPENED,
+            scope=EventScope.USER_VISIBLE,
+            actor_id=actor.user_id,
+        )
+        return ReopenOutcome(
+            status=result.target_status,
+            event_id=event_id,
+            comment_id=comment_id,
+            assignee_id=assignee_id,
+        )
+
+    def _pick_assignee(
+        self, *, ticket_id: int, previous_assignee_id: int | None, category_code: str
+    ) -> int | None:
+        if previous_assignee_id is not None:
+            target = self.assignment_repository.get_target_engineer(
+                previous_assignee_id, category_code
+            )
+            previous_still_eligible = (
+                target is not None
+                and bool(target["is_active"])
+                and bool(target["is_available"])
+                and bool(target["has_skill"])
+            )
+            if previous_still_eligible:
+                return previous_assignee_id
+        # AssignmentService.assign_new_ticket accepts ticket_id purely to
+        # match the frozen InitialAssignmentService Protocol signature --
+        # its own selection algorithm only needs category_code -- but
+        # passing the real id (rather than a placeholder) costs nothing
+        # and keeps this call unremarkable if that ever changes.
+        return self.assignment_service.assign_new_ticket(
+            ticket_id=ticket_id, category_code=category_code
+        )

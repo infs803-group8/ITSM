@@ -183,6 +183,13 @@ class WorkflowRepository:
         action (Start, Request User Info, Resume, Escalate, Request
         Vendor, Vendor Response, Submit Resolution, Confirm Resolution,
         Reopen, Manual Close) via ``workflow/action_engine.lock_ticket_state``.
+
+        Includes a few columns ``TicketState`` itself has no field for
+        (``category_code``, and -- added for C033 -- ``last_resolved_
+        assignee_id``) because several actions' own service layer reads
+        them directly off ``locked.row`` for logic that sits above the
+        pure state machine (C024/C028's target-engineer lookups,
+        C033 Reopen's previous-assignee preference).
         """
         return (
             self.database.execute(
@@ -193,6 +200,7 @@ class WorkflowRepository:
                            t.sla_deadline, t.pending_user_reason, t.pending_user_deadline,
                            t.resolution_summary, t.resolution_type, t.resolved_at,
                            t.auto_close_at, t.closure_type, t.closed_at,
+                           t.last_resolved_assignee_id,
                            assignee.role_code AS assignee_role_code
                     FROM tickets t
                     LEFT JOIN users assignee ON assignee.user_id = t.assignee_id
@@ -423,4 +431,34 @@ class WorkflowRepository:
                 "last_resolved_assignee_id": last_resolved_assignee_id,
                 "ticket_id": ticket_id,
             },
+        )
+
+    def apply_reopen(self, *, ticket_id: int, assignee_id: int | None) -> None:
+        """C033: RESOLVED -> REOPENED. Clears the four resolution/closure-
+        window columns back to NULL (``chk_tickets_resolution``'s third
+        branch requires all of them NULL once status leaves RESOLVED/
+        CLOSED and PENDING_USER/RESOLUTION_CONFIRMATION) but deliberately
+        leaves ``last_resolved_assignee_id`` untouched -- it is C033's own
+        INPUT (read by the caller before this call to decide
+        ``assignee_id``), not something this action itself produces, and
+        it will only be overwritten the next time this ticket resolves.
+        ``assignee_id`` may be the same previous assignee, a freshly
+        auto-picked one, or ``None`` (``chk_tickets_assignee_by_status``
+        places no constraint on ``assignee_id`` for REOPENED, unlike
+        ASSIGNED/IN_PROGRESS/PENDING_USER/PENDING_VENDOR).
+        """
+        self.database.execute(
+            text(
+                """
+                UPDATE tickets
+                SET status_code = 'REOPENED',
+                    assignee_id = :assignee_id,
+                    resolution_summary = NULL,
+                    resolution_type = NULL,
+                    resolved_at = NULL,
+                    auto_close_at = NULL
+                WHERE ticket_id = :ticket_id
+                """
+            ),
+            {"assignee_id": assignee_id, "ticket_id": ticket_id},
         )

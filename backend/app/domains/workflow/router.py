@@ -17,6 +17,7 @@ from app.core.errors import ApplicationError
 from app.domains.workflow.schema import (
     AvailableAction,
     EscalateRequest,
+    ReopenRequest,
     RequestUserInfoRequest,
     ResolveRequest,
     ResumeRequest,
@@ -28,6 +29,7 @@ from app.domains.workflow.serializer import ActorContext
 from app.domains.workflow.service import (
     ConfirmResolutionService,
     EscalateTicketService,
+    ReopenTicketService,
     RequestUserInfoService,
     ResumeTicketService,
     StartTicketService,
@@ -255,4 +257,33 @@ def confirm_resolution(
         actor=actor,
         action=AvailableAction.CONFIRM_RESOLUTION,
         event_id=outcome.event_id,
+    )
+
+
+@router.post(
+    "/tickets/{id}/reopen",
+    response_model=TicketActionResponse,
+    operation_id="api30ReopenTicket",
+    summary="Reopen ticket",
+    tags=["Resolution"],
+    responses=error_responses(401, 403, 404, 409, 422, 503),
+)
+def reopen_ticket(
+    ticket_id: Annotated[int, Path(alias="id", ge=1)],
+    body: ReopenRequest,
+    actor: Annotated[RequestContext, Depends(get_current_actor)],
+    database: Annotated[Session, Depends(get_db)],
+    _request_id: Annotated[UUID | None, Depends(request_id_header)],
+) -> TicketActionResponse:
+    outcome = ReopenTicketService(database).reopen(
+        ticket_id=ticket_id, actor=actor, reason=body.reason
+    )
+    database.commit()
+    return build_ticket_action_response(
+        database,
+        ticket_id=ticket_id,
+        actor=actor,
+        action=AvailableAction.REOPEN,
+        event_id=outcome.event_id,
+        comment_id=outcome.comment_id,
     )

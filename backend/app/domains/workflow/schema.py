@@ -179,6 +179,14 @@ class ResolveRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class ReopenRequest(BaseModel):
+    """docs/api/openapi.yaml: ReopenRequest (API-30)."""
+
+    reason: str = Field(min_length=1, max_length=4000)
+
+    model_config = {"extra": "forbid"}
+
+
 class AssignmentRequest(BaseModel):
     """docs/api/openapi.yaml: AssignmentRequest (API-21)."""
 
