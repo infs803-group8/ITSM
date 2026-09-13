@@ -78,12 +78,18 @@ class SlaRepository:
         return int(row["resolved_window_hours"])
 
     def get_cycle_state(self, ticket_id: int, *, for_update: bool = False) -> Mapping[str, Any] | None:
+        """Includes ``status_code`` alongside the four SLA columns -- C035's
+        threshold scan needs it (only UNASSIGNED/ASSIGNED/IN_PROGRESS/
+        PENDING_VENDOR/REOPENED tickets keep accruing Engineering SLA
+        time) as well as the SLA-only callers this method already served
+        before C035 existed.
+        """
         lock = " FOR UPDATE" if for_update else ""
         return (
             self.database.execute(
                 text(
-                    "SELECT ticket_id, sla_cycle_no, sla_status_code, sla_started_at, "
-                    "sla_deadline FROM tickets WHERE ticket_id = :ticket_id" + lock
+                    "SELECT ticket_id, status_code, sla_cycle_no, sla_status_code, "
+                    "sla_started_at, sla_deadline FROM tickets WHERE ticket_id = :ticket_id" + lock
                 ),
                 {"ticket_id": ticket_id},
             )
