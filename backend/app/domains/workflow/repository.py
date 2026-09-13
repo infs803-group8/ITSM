@@ -102,6 +102,31 @@ class WorkflowRepository:
             return None
         return row
 
+    def apply_initial_assignment(
+        self, *, ticket_id: int, status: str, assignee_id: int | None
+    ) -> None:
+        """C023.02: fix the ticket's post-creation status/assignee.
+
+        ``status`` is one of ``ASSIGNED``/``UNASSIGNED`` (a
+        ``state_machine.TicketStatus`` value passed as a plain string by
+        the caller) -- the ticket must never be left at the DB default of
+        ``NEW`` once this transaction commits; ``chk_tickets_assignee_by_status``
+        already enforces that ``ASSIGNED`` requires a non-null
+        ``assignee_id`` and ``UNASSIGNED`` requires a null one, so passing
+        a mismatched pair here fails loudly at the database rather than
+        silently committing an inconsistent row.
+        """
+        self.database.execute(
+            text(
+                """
+                UPDATE tickets
+                SET status_code = :status, assignee_id = :assignee_id
+                WHERE ticket_id = :ticket_id
+                """
+            ),
+            {"status": status, "assignee_id": assignee_id, "ticket_id": ticket_id},
+        )
+
     def get_workflow_snapshot(self, ticket_id: int) -> Mapping[str, Any] | None:
         """Read-only ticket + requester + assignee snapshot for C021's
         ``WorkflowReadModel``. Unlike ``get_ticket_for_update`` this is a
