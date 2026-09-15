@@ -4,7 +4,9 @@ Mirrors ``app.domains.attachments.access_policy`` (same duck-typed
 ``TicketAccessRecord`` shape, same "hidden ticket -> 404" rule) since both
 domains gate access to the same ``tickets`` row and neither owns a
 finished Ticket ORM model yet. See docs/project-management/decision-log.md
-Q02 for why EventScope is treated the same way AttachmentVisibility is:
+Q11 (Audit Role x EventScope matrix, pending A/B/D confirmation -- not
+Q02, which covers TicketDetail field redaction for Vendor responses)
+for why EventScope is treated the same way AttachmentVisibility is:
 USER_VISIBLE/INTERNAL_ONLY are readable by an increasing set of internal
 roles, and the vendor-facing scope is additionally restricted to the
 actor's own vendor organisation at the query layer.
