@@ -30,7 +30,7 @@
   1. 统一原则：任何返回 `TicketDetail`（无论是 API-17 直接返回，还是嵌入在 API-21–31 的 `TicketActionResponse.ticket` 里）都必须经过与 API-17 相同的 Role-aware Serializer，不因为是"写操作的返回值"而跳过角色过滤。
   2. Vendor 角色下：`ticket.description`、`ticket.requester`、`ticket.assignee`、`ticket.sla`、`ticket.pending_user`、`ticket.resolution`、`ticket.closure` 一律置 `null`；`ticket.vendor_request`/`vendor_response` 仅保留本组织当前或历史范围内的内容。
   3. Vendor 是否能看到 `ticket.status`/`display_status` 的具体内部值（例如 `PENDING_VENDOR`）需要与 B/D 单独确认——倾向于 Vendor 只依赖 `vendor_request.status`（ACTIVE/RESPONDED/CANCELLED）判断进度，不暴露 Ticket 内部生命周期状态，但这一点标记为**待确认子项**，不在本次草案中擅自定案。
-  4. 修正 OpenAPI 中 API-26/27/30 等所有 Vendor 可达接口的 Success Example，改为体现上述字段为 null 的真实 Vendor 视角，而不是复用 Manager/Tier2 视角的满字段示例。
+  4. 修正 OpenAPI 中相关接口的 Success Example，按各自真实调用角色展示，而不是统一按 Vendor 视角或复用 Manager/Tier2 视角的满字段示例：API-27（Vendor Response，调用者为本组织持有 Active Request 的 Vendor）按 Vendor 视角，上述字段应为 null；API-26（Request Vendor，调用者为当前受派的 Tier2）按 Tier2 视角；API-30（Reopen，调用者为工单 requester）按 requester 视角。三者调用角色不同，不能统一改成 Vendor 的空字段版本。（2026-09-15 修正：此前版本误将三者统一描述为 Vendor 可达接口。）
   5. 新增 Contract Test：以 Vendor Actor 调用 API-27，断言返回体中上述字段确为 `null`（对应测试矩阵 T-AUTH-03）。
 - **受影响任务**：C030（API-27 实现）、C038（合同核验）、C047（Vendor 隔离联调）。
 - **Review/PR**：C030 的 PR 需要包含新增的 Vendor 越权字段 Contract Test；B/D 需 Review 是否接受 `ticket.status` 的处理方式。
@@ -79,7 +79,7 @@
 - **确定行为（草案）**：
   1. **事务边界**：懒惰检查（API-24/29/30/31）在同一个数据库事务内完成"重新验证已过期 → 提交自动结果（状态+TicketEvent）→ COMMIT"，提交成功后，再判断这次用户请求本身是否还能执行原动作；如果不能（因为状态已经变了），返回结构化 409（`USER_RESPONSE_WINDOW_EXPIRED` 等），**不回滚刚刚已经提交的自动结果**。也就是"自动结果的提交"和"用户这次请求的失败响应"是两个独立的结果：前者已经落库成功，后者只是告知调用方"你来晚了"。
   2. **时间戳策略**：`resolved_at`/`closed_at`/SLA 事件时间统一使用**处理时刻**（Job 实际运行或懒惰检查触发的 UTC 时间），不使用理论上的原始 Deadline 时刻，避免记录一个系统实际没有观测到的时间点。原始 Deadline 仍保留在 Ticket 字段和 Event metadata 中作为审计对照，多天停机补跑时在 metadata 加 `"detected_late": true` 便于事后说明。
-  3. **幂等保障**：Job 与懒惰检查共用同一个 Deadline Service 和 `(ticket_id, cycle_no, event_type)` Unique Guard，防止重复运行产生重复的 SLA/Resolve/Close 事件。
+  3. **幂等保障**：Job 与懒惰检查共用同一个 Deadline Service，两者均在事务中锁定 Ticket，并按锁后最新状态与截止时间重新判断是否仍需执行；已完成的转换不重复执行，也不重复追加成功事件。`(ticket_id, cycle_no, event_type)` 的数据库 Unique Guard 仅覆盖 `SLA_CYCLE_STARTED`、`SLA_PAUSED`、`SLA_AT_RISK`、`SLA_OVERDUE`、`SLA_MET` 五类需要非空 `cycle_no` 的 SLA 事件；Auto Resolve/Auto Close 事件该列为 `null`，不受此 Unique Guard 保护，其幂等性完全依赖 Ticket 行锁、状态重验与业务变更和事件的原子提交，不能归因于现有 SLA Unique Guard。如需为 Resolve/Close 增加数据库层面的独立唯一保护，需提出单独的 Schema 变更，并验证合法后续 Cycle 不会被误拦截。（2026-09-15 修正：此前版本错将该 Unique Guard 描述为同时保护 Auto Resolve/Close。）
 - **受影响任务**：C018、C019、C020、C037。
 - **Review/PR**：建议 B 一起 Review（因为涉及 API-24/29/30/31 的公共响应约定），但不改变 Ticket 表结构，不属于公共合同变更，C 可先按此实现再一并 Review。
 - **测试预期**：T-TIME-05/06、T-RACE-01、T-JOB-05。
@@ -107,11 +107,11 @@
 - **日期**：2026-09-05（草拟）
 - **参与 Owner**：C（API-31 Owner，可自行决定）
 - **问题核实**：已核对 OpenAPI，`CloseRequest.acknowledge` 定义为 `type: boolean, const: true, required`。按标准 JSON Schema/Pydantic 校验语义，如果请求缺少该字段、传 `false` 或传其他类型，会在到达业务逻辑之前就被框架级请求校验拦截，产生通用 `422 VALIDATION_ERROR`，而不是合同里为 API-31 专门定义的 `422 CLOSE_ACKNOWLEDGEMENT_REQUIRED`。
-- **确定行为（草案，C 域内部实现选择，可直接执行）**：把后端 Pydantic 模型里的 `acknowledge` 字段类型放宽为普通 `bool`（去掉 `const` 层面的强校验），改由 API-31 的 Service 层显式检查 `acknowledge is not True`，命中时返回结构化 `422 CLOSE_ACKNOWLEDGEMENT_REQUIRED`；`reason` 等其他字段仍走常规 Pydantic 长度校验。这不改变 OpenAPI 对外可见的请求语义（字段仍是 boolean 且业务仍要求为 true），只是把这一项校验从 Schema 层移到 Service 层，因此不算公共合同变更，不需要等待团队确认。
+- **确定行为（草案，2026-09-15 修正后按此实现）**：API-31 继续要求 `acknowledge` 为必填的 JSON boolean，且值必须为 `true`；后端必须严格校验原始输入类型（使用 `StrictBool` 或等价机制），不能把字符串（如 `"true"`）或数字（如 `1`）隐式转换为确认。在字段校验与请求校验异常处理路径中，显式把 `acknowledge` 缺失或为 `false` 映射为结构化 `422 CLOSE_ACKNOWLEDGEMENT_REQUIRED`（而不是框架级通用 `422 VALIDATION_ERROR`）；非布尔输入及其他字段错误仍走既有请求校验规则，该转换只限定在 API-31 相关字段，不改变其他接口的错误处理路径。实现和导出的 OpenAPI 必须同时保留严格布尔、必填、`const: true` 语义。（此前版本建议把字段放宽为普通 `bool` 再由 Service 层判断 `is True`：经核实，普通必填 `bool` 仍会在缺失时被框架校验拦截为通用错误码，且会把 `"true"`/`1` 这类非布尔输入误判为已确认，因此不采用该方案。）
 - **受影响任务**：C034（API-31 实现）。
 - **Review/PR**：随 C034 PR 提交，请任意一名非作者 Reviewer 确认测试覆盖 T-CLOSE-01（缺失/false/true 三种输入）。
 - **测试预期**：T-CLOSE-01。
-- **状态**：**可直接执行**，仅记录在案供 Review，不阻塞开发。
+- **状态**：技术方案已修正为严格校验版本，**可按此实现**，随 C034 PR 提交 T-CLOSE-01 的测试证据供 Review。
 
 ---
 
@@ -135,7 +135,7 @@
 - **确定行为（草案）**：
   1. **跳过 80% 直接发现 OVERDUE**：Job 在同一次运行内**补写 `SLA_AT_RISK` 事件**（时间戳=本次 Job 实际运行时刻，不是理论 80% 时刻），紧接着在同一次运行中写 `SLA_OVERDUE` 事件（AT_RISK 先于 OVERDUE 落库），保证时间线语义完整、不出现"直接 OVERDUE 却没有 AT_RISK 记录"的空洞历史；`(ticket_id, cycle_no, event_type)` 的 Unique Guard 保证同一 Cycle 不会被再次补写。
   2. **已 OVERDUE 后请求信息**：当前 Cycle 的历史 `SLA_OVERDUE` 事件保留不变（不删除、不覆盖）；`tickets.sla_status_code` 转为 `PAUSED`（这是"当前"状态字段，与历史 Event 互不冲突）；Resume 后开始的新 Cycle 从 `ON_TRACK` 重新计时，不继承上一 Cycle 的 OVERDUE 标记。
-  3. **改派/重开的原因记录**：Manager Reassign 的可选 `reason` 写入 `REASSIGNED` 事件的 `metadata`（不新建 Comment，避免与正式 Workflow Comment 混淆）；Reopen 的必填 `reason` 作为一条 Workflow Comment（`visibility=USER_VISIBLE, comment_type=WORKFLOW, workflow_action=REOPEN`）落库，并在同一事务写 `TICKET_REOPENED` 事件引用该 `comment_id`，使 Reopen 原因对 Requester 和 Engineer 双方都可见且可追溯。
+  3. **改派/重开的原因记录**：Manager Reassign 的可选 `reason` 写入 `REASSIGNED` 事件的 `metadata`（不新建 Comment，避免与正式 Workflow Comment 混淆）；Reopen 的必填 `reason` 作为一条 `visibility=USER_VISIBLE` 的 Workflow Comment（`comment_type=WORKFLOW, workflow_action=REOPEN`）落库，同一事务内写入 `COMMENT_ADDED` 事件，由其 `comment_id` 列字段关联该 Comment；另写 `TICKET_REOPENED` 事件，该事件的 `comment_id` 列字段保持为 `null`（`chk_ticket_events_comment_type` 约束要求非 `COMMENT_ADDED` 类型的 `comment_id` 必须为空），在其 `metadata` 中保存该 Comment 的 `comment_id` 作为最小引用，不复制正文；Ticket 状态变更、Comment 写入与两条事件在同一事务原子提交，任一写入失败整体回滚。如需让 `TICKET_REOPENED` 的 `comment_id` 列直接持有引用，需先提出并经审核的 Canonical Schema 变更，当前 Schema 下不可直接执行。（2026-09-15 修正：此前版本让 `TICKET_REOPENED` 事件直接引用 `comment_id`，会被 `chk_ticket_events_comment_type` CHECK 约束拒绝，已用 SQLite 内存表验证插入被拒。）
 - **受影响任务**：C012、C017、C024、C026、C033、C035。
 - **Review/PR**：随对应任务 PR 提交，建议 A（SLA Task 运行方）、B（Comment 归属）各 Review 一次确认无异议。
 - **测试预期**：T-SLA-07、T-TIME-05、T-WF-09。
@@ -158,6 +158,29 @@
 
 ---
 
+## Q11 — Audit 事件权限矩阵（Role × EventScope），供 PR #21 引用
+
+- **日期**：2026-09-15（新增，回应 PR #21/#22 审核意见）
+- **参与 Owner**：C（提出并维护实现）、A/B/D（待确认）
+- **背景**：PR #21（API-32 Audit 事件域）的代码注释与 PR 描述此前将 Role × EventScope 权限规则指向 Q02，但 Q02 实际讨论的是 API-27 等接口向 Vendor 返回 TicketDetail 时的字段脱敏，并未记录 Audit 事件的读取权限矩阵，引用不足以作为该权限实现的决策记录。现补记该矩阵。
+- **确定行为（草案，待确认）**：
+
+| Role | Ticket 读取范围 | 允许的 EventScope |
+|---|---|---|
+| USER | 自己提交的工单 | USER_VISIBLE |
+| ENGINEER_TIER1 | 当前分配给自己的工单 | USER_VISIBLE、INTERNAL_ONLY |
+| ENGINEER_TIER2 | 当前分配给自己的工单 | USER_VISIBLE、INTERNAL_ONLY、VENDOR_SCOPE |
+| EXTERNAL_VENDOR | 本组织具有 Active 或 Historical VendorRequest 的工单 | 仅本组织 VENDOR_SCOPE |
+| SERVICE_DESK_MANAGER | 全部工单 | 三类 Scope |
+
+  显式请求无权 Scope 返回 `403 DATA_SCOPE_DENIED`；请求隐藏或不存在的工单返回 `404`；Vendor 对历史 Request 的读取权与回复/上传等写入权分别判断（历史可读，写入仍要求 Active）。
+- **受影响任务**：C032（Audit 域实现，对应 PR #21）。
+- **Review/PR**：待 A/B/D 确认；确认前，PR #21 保持 Draft，代码注释与 PR 描述均改为指向本条目。
+- **测试预期**：随 PR #21 补充的 MySQL 专项测试一并验证（角色隔离、Vendor 历史读取、403/404 边界、分页与事务）。
+- **状态**：**待 A/B/D 确认**（本条目由 C 依据现有代码整理，不代表团队已批准）。
+
+---
+
 ## 汇总：本周需要团队尽快确认的事项（按影响排序）
 
 1. **Q06**（AssigneeSummary 是否需要按角色瘦身）——直接卡住 C021 和 D 的前端类型生成。
@@ -166,7 +189,9 @@
 4. **Q04** 中 `TICKET_UPDATED` 是否新增枚举——影响 B 的 API-18 和 C 的事件映射表定稿。
 5. **Q10** 凭据轮换与账号发放流程——不阻塞开发，但存在真实安全风险，建议尽快处理。
 
-其余（Q01、Q05、Q07、Q08、Q09）C 可以按草案直接推进，不必等待团队会议。
+6. **Q11**（Audit 事件权限矩阵）——PR #21 的合并前置条件，需 A/B/D 确认后 PR #21 才能转正式复审。
+
+其余（Q01、Q05、Q07、Q08、Q09）C 可以按修正后的草案直接推进，不必等待团队会议。
 
 ---
 
@@ -174,5 +199,5 @@
 
 | 分支 | PR | CI 状态 | 备注 |
 |---|---|---|---|
-| `chore/WBS-C00-decision-log-risk-register` | #22 (draft) | 未知/待补 | 本文件与 risk-register.md 的初版；暂不合并，留 review 记录 |
-| `feature/WBS-C21-audit-domain` | #21 (draft) | 全部通过（Backend CI/test、Docker Build x2、OpenAPI Contract Check，2026-09-13） | Audit 域（API-32）实现；CI 通过说明沙盒环境里未能执行的 pytest 已在仓库真实 CI 中跑通 |
+| `chore/WBS-C00-decision-log-risk-register` | #22 (draft) | 未知/待补 | 本文件与 risk-register.md 的初版；2026-09-15 收到审核意见（Q09/Q07/Q05 三处 P2 技术描述已按建议修正，见上文各条目内的修正说明），待复审 |
+| `feature/WBS-C21-audit-domain` | #21 (draft) | 全部通过（Backend CI/test、Docker Build x2、OpenAPI Contract Check，2026-09-13） | Audit 域（API-32）实现；2026-09-15 收到审核意见：暂无阻塞性代码缺陷，但需补齐 Q11 权限矩阵确认、新增 MySQL 专项测试、更新验证记录后再申请复审 |
