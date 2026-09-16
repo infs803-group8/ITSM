@@ -43,9 +43,7 @@ def test_requester_can_read_own_ticket_events():
 def test_vendor_without_history_is_reported_as_not_found():
     actor = RequestContext(user_id=3, role=UserRole.EXTERNAL_VENDOR, vendor_org_id=7)
     with pytest.raises(ApplicationError) as error:
-        AuditAccessPolicy.ensure_ticket_read(
-            ticket(actor_has_vendor_history=False), actor
-        )
+        AuditAccessPolicy.ensure_ticket_read(ticket(actor_has_vendor_history=False), actor)
     assert error.value.code == "RESOURCE_NOT_FOUND"
 
 

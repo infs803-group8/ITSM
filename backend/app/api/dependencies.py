@@ -50,16 +50,20 @@ def get_current_actor(
             401,
         ) from None
 
-    row = database.execute(
-        text(
-            """
+    row = (
+        database.execute(
+            text(
+                """
             SELECT user_id, role_code, vendor_org_id
             FROM users
             WHERE user_id = :user_id AND is_active = 1
             """
-        ),
-        {"user_id": user_id},
-    ).mappings().one_or_none()
+            ),
+            {"user_id": user_id},
+        )
+        .mappings()
+        .one_or_none()
+    )
     if row is None:
         raise ApplicationError(
             "INVALID_ACCESS_TOKEN",
@@ -69,7 +73,5 @@ def get_current_actor(
     return RequestContext(
         user_id=int(row["user_id"]),
         role=str(row["role_code"]),
-        vendor_org_id=(
-            int(row["vendor_org_id"]) if row["vendor_org_id"] is not None else None
-        ),
+        vendor_org_id=(int(row["vendor_org_id"]) if row["vendor_org_id"] is not None else None),
     )

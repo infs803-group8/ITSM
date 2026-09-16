@@ -55,7 +55,9 @@ class SlaRepositoryFake:
         self.calls: list[dict] = []
 
     def get_threshold_scan_candidates(self, *, now, at_risk_cutoff, limit, after_ticket_id):
-        self.calls.append({"now": now, "at_risk_cutoff": at_risk_cutoff, "after_ticket_id": after_ticket_id})
+        self.calls.append(
+            {"now": now, "at_risk_cutoff": at_risk_cutoff, "after_ticket_id": after_ticket_id}
+        )
         if not self._pages:
             return []
         return self._pages.pop(0)
@@ -367,6 +369,7 @@ def test_a_plain_business_logic_exception_is_never_retried_even_with_a_session_f
     attempt exactly like before this task, even when a session_factory
     is available.
     """
+
     def session_factory():
         return DatabaseFake()
 

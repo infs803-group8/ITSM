@@ -106,7 +106,9 @@ class AssignTicketService:
         """
         row = self.repository.get_ticket_snapshot_for_assign(ticket_id)
         if row is None:
-            raise ApplicationError("RESOURCE_NOT_FOUND", "The requested resource was not found.", 404)
+            raise ApplicationError(
+                "RESOURCE_NOT_FOUND", "The requested resource was not found.", 404
+            )
 
         if assignee_id == row["assignee_id"]:
             raise ApplicationError(

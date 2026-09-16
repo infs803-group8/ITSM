@@ -44,7 +44,11 @@ from app.core.clock import utc_now
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.domains.sla.service import SlaCycleService
-from app.domains.workflow.deadline_service import DeadlineService, PendingUserSnapshot, ResolvedSnapshot
+from app.domains.workflow.deadline_service import (
+    DeadlineService,
+    PendingUserSnapshot,
+    ResolvedSnapshot,
+)
 from app.domains.workflow.repository import WorkflowRepository
 
 logger = logging.getLogger(__name__)
@@ -159,7 +163,9 @@ class SlaMonitorJob:
         self.database = self._session_factory()
         self._rebuild_collaborators()
 
-    def run_once(self, *, now: datetime | None = None, limit: int = _DEFAULT_PAGE_SIZE) -> RunSummary:
+    def run_once(
+        self, *, now: datetime | None = None, limit: int = _DEFAULT_PAGE_SIZE
+    ) -> RunSummary:
         """C036.01/.04: one full pass over all three candidate families,
         then return -- never loops on a timer itself.
 
@@ -272,8 +278,7 @@ class SlaMonitorJob:
                 if self._session_factory is None or attempt > _MAX_CONNECTION_RETRIES:
                     counts.failed += 1
                     logger.warning(
-                        "SLA monitor: ticket %s failed after %d attempt(s) "
-                        "(connection error)",
+                        "SLA monitor: ticket %s failed after %d attempt(s) (connection error)",
                         ticket_id,
                         attempt,
                     )

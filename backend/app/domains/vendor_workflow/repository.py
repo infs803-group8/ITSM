@@ -119,9 +119,7 @@ class VendorWorkflowRepository:
             {"vendor_request_id": vendor_request_id, "responded_at": responded_at},
         )
 
-    def create_response(
-        self, *, vendor_request_id: int, responder_id: int, message: str
-    ) -> int:
+    def create_response(self, *, vendor_request_id: int, responder_id: int, message: str) -> int:
         """C030.03: insert the one-and-only response row for this request
         -- schema.sql's ``uq_vendor_responses_request`` unique key means a
         second INSERT for the same ``vendor_request_id`` is itself
@@ -141,7 +139,6 @@ class VendorWorkflowRepository:
             },
         )
         return int(result.lastrowid)
-
 
     def cancel_active_request(
         self,

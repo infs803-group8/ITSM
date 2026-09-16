@@ -17,10 +17,14 @@ from app.domains.assignment.repository import AssignmentRepository
 from app.domains.assignment.service import AssignmentService
 from app.domains.audit.service import AuditService
 from app.domains.sla.service import SlaCycleService
+from app.domains.vendor_workflow.repository import VendorWorkflowRepository
 from app.domains.workflow.action_engine import evaluate_or_raise, lock_ticket_state
 from app.domains.workflow.comment_gateway import insert_workflow_comment
-from app.domains.workflow.deadline_service import DeadlineService, PendingUserSnapshot, ResolvedSnapshot
-from app.domains.vendor_workflow.repository import VendorWorkflowRepository
+from app.domains.workflow.deadline_service import (
+    DeadlineService,
+    PendingUserSnapshot,
+    ResolvedSnapshot,
+)
 from app.domains.workflow.repository import WorkflowRepository
 from app.domains.workflow.state_machine import ActionRequest, TicketStatus, WorkflowAction
 
@@ -74,7 +78,6 @@ class StartTicketService:
         return WorkflowActionOutcome(status=result.target_status, event_id=event_id)
 
 
-
 class RequestUserInfoService:
     """API-23 Request User Info (C026): IN_PROGRESS -> PENDING_USER/
     INFORMATION_REQUIRED, current assignee only. Pauses the current
@@ -106,9 +109,7 @@ class RequestUserInfoService:
             # CHAR_LENGTH(TRIM(message)) -- reject a whitespace-only
             # message here rather than let the INSERT fail at the
             # database with an opaque IntegrityError.
-            raise ApplicationError(
-                "VALIDATION_ERROR", "message must not be blank.", 422
-            )
+            raise ApplicationError("VALIDATION_ERROR", "message must not be blank.", 422)
 
         locked = lock_ticket_state(self.repository, ticket_id=ticket_id, now=now)
         request = ActionRequest(
@@ -263,7 +264,6 @@ class ResumeTicketService:
         return WorkflowActionOutcome(
             status=result.target_status, event_id=event_id, comment_id=comment_id
         )
-
 
 
 class EscalateTicketService:
@@ -451,9 +451,7 @@ class SubmitResolutionService:
         # instead. Caught by re-reading sla/repository.py's own
         # docstrings while starting C032, which name both methods'
         # intended callers explicitly.
-        pending_user_deadline = now + timedelta(
-            hours=self.sla.repository.get_user_response_hours()
-        )
+        pending_user_deadline = now + timedelta(hours=self.sla.repository.get_user_response_hours())
         self.repository.apply_submit_resolution(
             ticket_id=ticket_id,
             pending_user_deadline=pending_user_deadline,

@@ -95,9 +95,7 @@ class AuditService:
         access_record = self.repository.get_ticket_access(ticket_id, actor)
         AuditAccessPolicy.ensure_ticket_read(access_record, actor)
         allowed_scopes = AuditAccessPolicy.resolve_scope_filter(actor, scope)
-        vendor_org_id = (
-            actor.vendor_org_id if actor.role == UserRole.EXTERNAL_VENDOR else None
-        )
+        vendor_org_id = actor.vendor_org_id if actor.role == UserRole.EXTERNAL_VENDOR else None
 
         rows, total = self.repository.list_events(
             ticket_id=ticket_id,

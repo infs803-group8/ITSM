@@ -26,9 +26,10 @@ class AuditRepository:
         ticket_id: int,
         actor: RequestContext,
     ) -> TicketAccessRecord | None:
-        row = self.database.execute(
-            text(
-                """
+        row = (
+            self.database.execute(
+                text(
+                    """
                 SELECT t.ticket_id, t.requester_id, t.assignee_id, t.status_code,
                        active_vr.vendor_request_id AS active_vendor_request_id,
                        active_vr.vendor_org_id AS active_vendor_org_id,
@@ -42,9 +43,12 @@ class AuditRepository:
                   ON active_vr.ticket_id = t.ticket_id AND active_vr.status = 'ACTIVE'
                 WHERE t.ticket_id = :ticket_id
                 """
-            ),
-            {"ticket_id": ticket_id, "actor_vendor_org_id": actor.vendor_org_id or 0},
-        ).mappings().one_or_none()
+                ),
+                {"ticket_id": ticket_id, "actor_vendor_org_id": actor.vendor_org_id or 0},
+            )
+            .mappings()
+            .one_or_none()
+        )
         if row is None:
             return None
         return TicketAccessRecord(
@@ -124,9 +128,7 @@ class AuditRepository:
             "allowed_scopes": tuple(allowed_scopes),
         }
         if vendor_org_id is not None:
-            filters.append(
-                "(e.scope <> 'VENDOR_SCOPE' OR e.vendor_org_id = :vendor_org_id)"
-            )
+            filters.append("(e.scope <> 'VENDOR_SCOPE' OR e.vendor_org_id = :vendor_org_id)")
             params["vendor_org_id"] = vendor_org_id
         if event_type is not None:
             filters.append("e.event_type = :event_type")
@@ -145,9 +147,10 @@ class AuditRepository:
                 params,
             ).scalar_one()
         )
-        rows = self.database.execute(
-            text(
-                f"""
+        rows = (
+            self.database.execute(
+                text(
+                    f"""
                 SELECT e.event_id, e.ticket_id, e.event_type, e.scope,
                        e.actor_id, u.display_name AS actor_display_name,
                        u.role_code AS actor_role,
@@ -158,7 +161,10 @@ class AuditRepository:
                 ORDER BY e.occurred_at DESC, e.event_id DESC
                 LIMIT :limit OFFSET :offset
                 """
-            ).bindparams(*bind_params),
-            {**params, "limit": page_size, "offset": (page - 1) * page_size},
-        ).mappings().all()
+                ).bindparams(*bind_params),
+                {**params, "limit": page_size, "offset": (page - 1) * page_size},
+            )
+            .mappings()
+            .all()
+        )
         return rows, count

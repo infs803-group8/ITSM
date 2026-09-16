@@ -112,7 +112,9 @@ class DeadlineService:
             summary = snapshot.resolution_summary
 
         resolved_at = now
-        close_at = auto_close_deadline(resolved_at=resolved_at, resolved_window_hours=resolved_window_hours)
+        close_at = auto_close_deadline(
+            resolved_at=resolved_at, resolved_window_hours=resolved_window_hours
+        )
 
         self.repository.apply_auto_resolution(
             ticket_id=snapshot.ticket_id,
@@ -195,7 +197,9 @@ class DeadlineService:
             409,
         )
 
-    def enforce_resolved_not_auto_closed(self, snapshot: ResolvedSnapshot, *, now: datetime) -> None:
+    def enforce_resolved_not_auto_closed(
+        self, snapshot: ResolvedSnapshot, *, now: datetime
+    ) -> None:
         """Guard for API-30 Reopen / API-31 Manual Close. Returns normally
         when the 7-day window is still open; otherwise commits the
         auto-close outcome and raises.

@@ -159,7 +159,9 @@ class TransitionResult:
     #: without starting a new one, "KEEP" leaves the current cycle alone,
     #: "NONE" means no cycle bookkeeping change (system closure actions).
     cycle_effect: str = "NONE"
-    vendor_request_effect: str | None = None  # None | "CREATE_ACTIVE" | "MARK_RESPONDED" | "CANCEL_ACTIVE"
+    vendor_request_effect: str | None = (
+        None  # None | "CREATE_ACTIVE" | "MARK_RESPONDED" | "CANCEL_ACTIVE"
+    )
     resolution_type: ResolutionType | None = None
     closure_type: ClosureType | None = None
     denial_code: str | None = None
@@ -243,7 +245,8 @@ def _eval_assign(state: TicketState, request: ActionRequest) -> TransitionResult
     if state.status == TicketStatus.PENDING_VENDOR and state.sla_status == SlaStatus.OVERDUE:
         if not state.has_active_vendor_request:
             return TransitionResult.deny(
-                _INVALID_TRANSITION, "PENDING_VENDOR reassignment requires an active vendor request."
+                _INVALID_TRANSITION,
+                "PENDING_VENDOR reassignment requires an active vendor request.",
             )
         result = eligible(tier2_only)
         if result.allowed:
@@ -265,29 +268,46 @@ def _eval_assign(state: TicketState, request: ActionRequest) -> TransitionResult
 
 def _eval_escalate(state: TicketState, request: ActionRequest) -> TransitionResult:
     if state.status != TicketStatus.IN_PROGRESS:
-        return TransitionResult.deny(_INVALID_TRANSITION, "Escalation requires an in-progress ticket.")
+        return TransitionResult.deny(
+            _INVALID_TRANSITION, "Escalation requires an in-progress ticket."
+        )
     if request.actor_role != UserRole.ENGINEER_TIER1 or not _is_current_assignee(state, request):
         return TransitionResult.deny(
             _NOT_ASSIGNEE, "Only the ticket's current Tier 1 assignee may escalate it."
         )
-    if request.target_assignee_role is not None and request.target_assignee_role != UserRole.ENGINEER_TIER2:
-        return TransitionResult.deny(_TARGET_NOT_ELIGIBLE, "Escalation must target a Tier 2 engineer.")
+    if (
+        request.target_assignee_role is not None
+        and request.target_assignee_role != UserRole.ENGINEER_TIER2
+    ):
+        return TransitionResult.deny(
+            _TARGET_NOT_ELIGIBLE, "Escalation must target a Tier 2 engineer."
+        )
     return TransitionResult(allowed=True, target_status=TicketStatus.ASSIGNED, cycle_effect="KEEP")
 
 
 def _eval_start(state: TicketState, request: ActionRequest) -> TransitionResult:
     if state.status not in {TicketStatus.ASSIGNED, TicketStatus.REOPENED}:
-        return TransitionResult.deny(_INVALID_TRANSITION, "Only an assigned or reopened ticket can be started.")
+        return TransitionResult.deny(
+            _INVALID_TRANSITION, "Only an assigned or reopened ticket can be started."
+        )
     if not _is_current_assignee(state, request):
-        return TransitionResult.deny(_NOT_ASSIGNEE, "Only the ticket's current assignee may start it.")
-    return TransitionResult(allowed=True, target_status=TicketStatus.IN_PROGRESS, cycle_effect="KEEP")
+        return TransitionResult.deny(
+            _NOT_ASSIGNEE, "Only the ticket's current assignee may start it."
+        )
+    return TransitionResult(
+        allowed=True, target_status=TicketStatus.IN_PROGRESS, cycle_effect="KEEP"
+    )
 
 
 def _eval_request_user_info(state: TicketState, request: ActionRequest) -> TransitionResult:
     if state.status != TicketStatus.IN_PROGRESS:
-        return TransitionResult.deny(_INVALID_TRANSITION, "Requesting user info requires an in-progress ticket.")
+        return TransitionResult.deny(
+            _INVALID_TRANSITION, "Requesting user info requires an in-progress ticket."
+        )
     if not _is_current_assignee(state, request):
-        return TransitionResult.deny(_NOT_ASSIGNEE, "Only the ticket's current assignee may request user info.")
+        return TransitionResult.deny(
+            _NOT_ASSIGNEE, "Only the ticket's current assignee may request user info."
+        )
     return TransitionResult(
         allowed=True,
         target_status=TicketStatus.PENDING_USER,
@@ -298,15 +318,21 @@ def _eval_request_user_info(state: TicketState, request: ActionRequest) -> Trans
 
 def _eval_user_resume(state: TicketState, request: ActionRequest) -> TransitionResult:
     if state.status != TicketStatus.PENDING_USER:
-        return TransitionResult.deny(_INVALID_TRANSITION, "Resuming requires a pending-user ticket.")
+        return TransitionResult.deny(
+            _INVALID_TRANSITION, "Resuming requires a pending-user ticket."
+        )
     if not _is_requester(state, request):
         return TransitionResult.deny(_NOT_REQUESTER, "Only the ticket's requester may resume it.")
-    return TransitionResult(allowed=True, target_status=TicketStatus.IN_PROGRESS, cycle_effect="NEW")
+    return TransitionResult(
+        allowed=True, target_status=TicketStatus.IN_PROGRESS, cycle_effect="NEW"
+    )
 
 
 def _eval_request_vendor(state: TicketState, request: ActionRequest) -> TransitionResult:
     if state.status != TicketStatus.IN_PROGRESS:
-        return TransitionResult.deny(_INVALID_TRANSITION, "Requesting vendor help requires an in-progress ticket.")
+        return TransitionResult.deny(
+            _INVALID_TRANSITION, "Requesting vendor help requires an in-progress ticket."
+        )
     if request.actor_role != UserRole.ENGINEER_TIER2 or not _is_current_assignee(state, request):
         return TransitionResult.deny(
             _NOT_ASSIGNEE, "Only the ticket's current Tier 2 assignee may request vendor help."
@@ -325,9 +351,13 @@ def _eval_request_vendor(state: TicketState, request: ActionRequest) -> Transiti
 
 def _eval_vendor_response(state: TicketState, request: ActionRequest) -> TransitionResult:
     if state.status != TicketStatus.PENDING_VENDOR:
-        return TransitionResult.deny(_INVALID_TRANSITION, "Vendor response requires a pending-vendor ticket.")
+        return TransitionResult.deny(
+            _INVALID_TRANSITION, "Vendor response requires a pending-vendor ticket."
+        )
     if request.actor_role != UserRole.EXTERNAL_VENDOR:
-        return TransitionResult.deny(_NOT_ASSIGNEE, "Only a vendor actor may submit a vendor response.")
+        return TransitionResult.deny(
+            _NOT_ASSIGNEE, "Only a vendor actor may submit a vendor response."
+        )
     if not state.has_active_vendor_request:
         return TransitionResult.deny(
             "NO_ACTIVE_VENDOR_REQUEST", "There is no active vendor request on this ticket."
@@ -350,7 +380,9 @@ def _eval_vendor_response(state: TicketState, request: ActionRequest) -> Transit
 def _eval_submit_resolution(state: TicketState, request: ActionRequest) -> TransitionResult:
     if state.status == TicketStatus.IN_PROGRESS:
         if not _is_current_assignee(state, request):
-            return TransitionResult.deny(_NOT_ASSIGNEE, "Only the ticket's current assignee may submit a resolution.")
+            return TransitionResult.deny(
+                _NOT_ASSIGNEE, "Only the ticket's current assignee may submit a resolution."
+            )
         return TransitionResult(
             allowed=True,
             target_status=TicketStatus.PENDING_USER,
@@ -358,9 +390,12 @@ def _eval_submit_resolution(state: TicketState, request: ActionRequest) -> Trans
             cycle_effect="KEEP",
         )
     if state.status == TicketStatus.PENDING_VENDOR:
-        if request.actor_role != UserRole.ENGINEER_TIER2 or not _is_current_assignee(state, request):
+        if request.actor_role != UserRole.ENGINEER_TIER2 or not _is_current_assignee(
+            state, request
+        ):
             return TransitionResult.deny(
-                _NOT_ASSIGNEE, "Only the ticket's current Tier 2 assignee may resolve without waiting on the vendor."
+                _NOT_ASSIGNEE,
+                "Only the ticket's current Tier 2 assignee may resolve without waiting on the vendor.",
             )
         return TransitionResult(
             allowed=True,
@@ -370,7 +405,8 @@ def _eval_submit_resolution(state: TicketState, request: ActionRequest) -> Trans
             cycle_effect="KEEP",
         )
     return TransitionResult.deny(
-        _INVALID_TRANSITION, "Submitting a resolution requires an in-progress or pending-vendor ticket."
+        _INVALID_TRANSITION,
+        "Submitting a resolution requires an in-progress or pending-vendor ticket.",
     )
 
 
@@ -379,9 +415,13 @@ def _eval_confirm_resolution(state: TicketState, request: ActionRequest) -> Tran
         state.status != TicketStatus.PENDING_USER
         or state.pending_user_reason != PendingUserReason.RESOLUTION_CONFIRMATION
     ):
-        return TransitionResult.deny(_INVALID_TRANSITION, "Confirming a resolution requires that one was submitted.")
+        return TransitionResult.deny(
+            _INVALID_TRANSITION, "Confirming a resolution requires that one was submitted."
+        )
     if not _is_requester(state, request):
-        return TransitionResult.deny(_NOT_REQUESTER, "Only the ticket's requester may confirm a resolution.")
+        return TransitionResult.deny(
+            _NOT_REQUESTER, "Only the ticket's requester may confirm a resolution."
+        )
     return TransitionResult(
         allowed=True,
         target_status=TicketStatus.RESOLVED,
@@ -400,9 +440,13 @@ def _eval_reopen(state: TicketState, request: ActionRequest) -> TransitionResult
 
 def _eval_manual_close(state: TicketState, request: ActionRequest) -> TransitionResult:
     if state.status != TicketStatus.RESOLVED:
-        return TransitionResult.deny(_INVALID_TRANSITION, "Manual close requires a resolved ticket.")
+        return TransitionResult.deny(
+            _INVALID_TRANSITION, "Manual close requires a resolved ticket."
+        )
     if not _is_requester(state, request):
-        return TransitionResult.deny(_NOT_REQUESTER, "Only the ticket's requester may manually close it.")
+        return TransitionResult.deny(
+            _NOT_REQUESTER, "Only the ticket's requester may manually close it."
+        )
     return TransitionResult(
         allowed=True,
         target_status=TicketStatus.CLOSED,
@@ -417,7 +461,8 @@ def _eval_auto_resolve_no_response(state: TicketState, _request: ActionRequest) 
         or state.pending_user_reason != PendingUserReason.INFORMATION_REQUIRED
     ):
         return TransitionResult.deny(
-            _INVALID_TRANSITION, "Auto-resolve-no-response requires a pending-user/information-required ticket."
+            _INVALID_TRANSITION,
+            "Auto-resolve-no-response requires a pending-user/information-required ticket.",
         )
     return TransitionResult(
         allowed=True,
@@ -427,7 +472,9 @@ def _eval_auto_resolve_no_response(state: TicketState, _request: ActionRequest) 
     )
 
 
-def _eval_auto_resolve_confirmation_timeout(state: TicketState, _request: ActionRequest) -> TransitionResult:
+def _eval_auto_resolve_confirmation_timeout(
+    state: TicketState, _request: ActionRequest
+) -> TransitionResult:
     if (
         state.status != TicketStatus.PENDING_USER
         or state.pending_user_reason != PendingUserReason.RESOLUTION_CONFIRMATION
@@ -481,7 +528,9 @@ def evaluate(state: TicketState, request: ActionRequest) -> TransitionResult:
     per-action exception.
     """
     if state.status == TicketStatus.CLOSED:
-        return TransitionResult.deny(_TICKET_CLOSED, "This ticket is closed and accepts no further actions.")
+        return TransitionResult.deny(
+            _TICKET_CLOSED, "This ticket is closed and accepts no further actions."
+        )
     return _HANDLERS[request.action](state, request)
 
 
@@ -505,7 +554,9 @@ def available_actions(
             actor_role=actor_role,
             actor_id=actor_id,
             actor_vendor_org_id=actor_vendor_org_id,
-            active_vendor_request_org_id=actor_vendor_org_id if state.has_active_vendor_request else None,
+            active_vendor_request_org_id=actor_vendor_org_id
+            if state.has_active_vendor_request
+            else None,
         )
         if evaluate(state, request).allowed:
             found.add(action)

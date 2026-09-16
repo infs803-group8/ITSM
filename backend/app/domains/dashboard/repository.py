@@ -29,9 +29,10 @@ class DashboardRepository:
 
     def summary(self, actor: RequestContext) -> Mapping[str, Any]:
         scope_sql, params = self._scope_sql(actor)
-        return self.database.execute(
-            text(
-                f"""
+        return (
+            self.database.execute(
+                text(
+                    f"""
                 SELECT
                   SUM(t.status_code NOT IN ('RESOLVED', 'CLOSED', 'NEW')) AS total_active,
                   SUM(t.status_code = 'UNASSIGNED') AS unassigned,
@@ -51,9 +52,12 @@ class DashboardRepository:
                 FROM tickets t
                 WHERE {scope_sql}
                 """
-            ),
-            params,
-        ).mappings().one()
+                ),
+                params,
+            )
+            .mappings()
+            .one()
+        )
 
     def list_overdue(
         self,
@@ -86,9 +90,10 @@ class DashboardRepository:
                     text(f"SELECT COUNT(*) FROM tickets t WHERE {overdue_where}"), params
                 ).scalar_one()
             )
-            rows = self.database.execute(
-                text(
-                    f"""
+            rows = (
+                self.database.execute(
+                    text(
+                        f"""
                     SELECT t.ticket_id, t.title, t.category_code, t.priority_code,
                            t.status_code, t.sla_cycle_no, t.sla_deadline,
                            COALESCE(overdue_event.occurred_at, t.sla_deadline) AS overdue_at,
@@ -118,9 +123,12 @@ class DashboardRepository:
                     ORDER BY overdue_at DESC, t.ticket_id DESC
                     LIMIT :limit OFFSET :offset
                     """
-                ),
-                params,
-            ).mappings().all()
+                    ),
+                    params,
+                )
+                .mappings()
+                .all()
+            )
             return rows, count
 
         history_where = f"{where_sql} AND e.event_type = 'SLA_OVERDUE'"
@@ -134,9 +142,10 @@ class DashboardRepository:
                 params,
             ).scalar_one()
         )
-        rows = self.database.execute(
-            text(
-                f"""
+        rows = (
+            self.database.execute(
+                text(
+                    f"""
                 SELECT t.ticket_id, t.title, t.category_code, t.priority_code,
                        t.status_code, e.cycle_no AS sla_cycle_no,
                        COALESCE(
@@ -173,7 +182,10 @@ class DashboardRepository:
                 ORDER BY e.occurred_at DESC, e.event_id DESC
                 LIMIT :limit OFFSET :offset
                 """
-            ),
-            params,
-        ).mappings().all()
+                ),
+                params,
+            )
+            .mappings()
+            .all()
+        )
         return rows, count

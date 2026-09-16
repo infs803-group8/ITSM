@@ -174,7 +174,9 @@ def test_requester_can_resume_from_information_required(monkeypatch):
     # SlaRepositoryFake supplies.
     assert len(service.deadlines.calls) == 1
     assert service.deadlines.calls[0]["resolved_window_hours"] == 168
-    assert service.deadlines.calls[0]["snapshot"].pending_user_reason.value == "INFORMATION_REQUIRED"
+    assert (
+        service.deadlines.calls[0]["snapshot"].pending_user_reason.value == "INFORMATION_REQUIRED"
+    )
 
 
 def test_requester_can_resume_issue_persists_from_resolution_confirmation(monkeypatch):

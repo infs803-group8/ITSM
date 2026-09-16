@@ -87,20 +87,14 @@ def test_hidden_ticket_is_reported_as_not_found():
     service, _fake = audit_service(ticket=None)
     actor = RequestContext(user_id=1001, role=UserRole.USER)
     with pytest.raises(ApplicationError) as error:
-        service.list_events(
-            5001, actor, event_type=None, scope=None, page=1, page_size=20
-        )
+        service.list_events(5001, actor, event_type=None, scope=None, page=1, page_size=20)
     assert error.value.code == "RESOURCE_NOT_FOUND"
 
 
 def test_list_events_maps_rows_into_the_response_schema():
-    service, fake = audit_service(
-        ticket=ticket(), rows=[event_row()], total=1
-    )
+    service, fake = audit_service(ticket=ticket(), rows=[event_row()], total=1)
     actor = RequestContext(user_id=1001, role=UserRole.USER)
-    response = service.list_events(
-        5001, actor, event_type=None, scope=None, page=1, page_size=20
-    )
+    response = service.list_events(5001, actor, event_type=None, scope=None, page=1, page_size=20)
     assert response.meta.total == 1
     assert len(response.data) == 1
     item = response.data[0]
@@ -127,9 +121,7 @@ def test_list_events_maps_a_system_generated_row_to_a_null_actor():
         total=1,
     )
     actor = RequestContext(user_id=1001, role=UserRole.USER)
-    response = service.list_events(
-        5001, actor, event_type=None, scope=None, page=1, page_size=20
-    )
+    response = service.list_events(5001, actor, event_type=None, scope=None, page=1, page_size=20)
     assert response.data[0].actor is None
 
 
@@ -140,33 +132,28 @@ def test_list_events_decodes_json_string_metadata():
         total=1,
     )
     actor = RequestContext(user_id=1001, role=UserRole.USER)
-    response = service.list_events(
-        5001, actor, event_type=None, scope=None, page=1, page_size=20
-    )
+    response = service.list_events(5001, actor, event_type=None, scope=None, page=1, page_size=20)
     assert response.data[0].metadata == {"reason": "ESCALATION"}
 
 
 def test_list_events_restricts_scope_filter_for_user_role():
     service, fake = audit_service(ticket=ticket(), rows=[], total=0)
     actor = RequestContext(user_id=1001, role=UserRole.USER)
-    service.list_events(
-        5001, actor, event_type=None, scope=None, page=1, page_size=20
-    )
+    service.list_events(5001, actor, event_type=None, scope=None, page=1, page_size=20)
     assert fake.list_calls[0]["allowed_scopes"] == ["USER_VISIBLE"]
     assert fake.list_calls[0]["vendor_org_id"] is None
 
 
 def test_list_events_passes_the_actors_own_vendor_org_id_for_vendor_scope():
     service, fake = audit_service(
-        ticket=ticket(active_vendor_request_id=1, active_vendor_org_id=7,
-                       actor_has_vendor_history=True),
+        ticket=ticket(
+            active_vendor_request_id=1, active_vendor_org_id=7, actor_has_vendor_history=True
+        ),
         rows=[],
         total=0,
     )
     actor = RequestContext(user_id=3001, role=UserRole.EXTERNAL_VENDOR, vendor_org_id=7)
-    service.list_events(
-        5001, actor, event_type=None, scope=None, page=1, page_size=20
-    )
+    service.list_events(5001, actor, event_type=None, scope=None, page=1, page_size=20)
     assert fake.list_calls[0]["vendor_org_id"] == 7
     assert fake.list_calls[0]["allowed_scopes"] == ["VENDOR_SCOPE"]
 

@@ -64,9 +64,7 @@ class TicketEvent(Base):
     attachment_id: Mapped[str | None] = mapped_column(
         CHAR(36, charset="ascii", collation="ascii_bin"), nullable=True
     )
-    vendor_request_id: Mapped[int | None] = mapped_column(
-        BIGINT(unsigned=True), nullable=True
-    )
+    vendor_request_id: Mapped[int | None] = mapped_column(BIGINT(unsigned=True), nullable=True)
     # Mapped as ``metadata_json`` because ``metadata`` is reserved on the
     # SQLAlchemy Declarative Base; the physical column name is unchanged.
     metadata_json: Mapped[dict[str, Any]] = mapped_column(

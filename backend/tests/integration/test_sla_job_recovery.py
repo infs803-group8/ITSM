@@ -156,7 +156,9 @@ def test_a_long_missed_scan_backfills_at_risk_then_overdue_and_a_rerun_adds_noth
     _reset(engine)
     _seed_engineer_and_requester(engine)
     ticket_id = 80001
-    _seed_in_progress_ticket(engine, ticket_id=ticket_id, sla_started_at=datetime.now(UTC) - timedelta(days=3))
+    _seed_in_progress_ticket(
+        engine, ticket_id=ticket_id, sla_started_at=datetime.now(UTC) - timedelta(days=3)
+    )
 
     with Session(engine) as database:
         first_summary = SlaMonitorJob(database, session_factory=lambda: Session(engine)).run_once()
@@ -172,7 +174,9 @@ def test_a_long_missed_scan_backfills_at_risk_then_overdue_and_a_rerun_adds_noth
         database.commit()
 
     assert second_summary.threshold.processed == 0
-    assert second_summary.threshold.skipped == 1  # already OVERDUE -> re-validated out, not re-written
+    assert (
+        second_summary.threshold.skipped == 1
+    )  # already OVERDUE -> re-validated out, not re-written
     assert _fetch_event_types(engine, ticket_id) == ["SLA_AT_RISK", "SLA_OVERDUE"]  # unchanged
 
 
@@ -188,8 +192,12 @@ def test_a_single_ticket_failure_does_not_stop_the_rest_of_the_batch():
     healthy_ticket_id = 80011
     broken_ticket_id = 80012
     now = datetime.now(UTC)
-    _seed_in_progress_ticket(engine, ticket_id=healthy_ticket_id, sla_started_at=now - timedelta(hours=39))
-    _seed_in_progress_ticket(engine, ticket_id=broken_ticket_id, sla_started_at=now - timedelta(hours=39))
+    _seed_in_progress_ticket(
+        engine, ticket_id=healthy_ticket_id, sla_started_at=now - timedelta(hours=39)
+    )
+    _seed_in_progress_ticket(
+        engine, ticket_id=broken_ticket_id, sla_started_at=now - timedelta(hours=39)
+    )
 
     with Session(engine) as database:
         job = SlaMonitorJob(database, session_factory=lambda: Session(engine))
@@ -228,7 +236,9 @@ def test_two_concurrent_monitor_runs_against_the_same_overdue_ticket_write_the_e
     _reset(engine)
     _seed_engineer_and_requester(engine)
     ticket_id = 80021
-    _seed_in_progress_ticket(engine, ticket_id=ticket_id, sla_started_at=datetime.now(UTC) - timedelta(hours=49))
+    _seed_in_progress_ticket(
+        engine, ticket_id=ticket_id, sla_started_at=datetime.now(UTC) - timedelta(hours=49)
+    )
 
     results: dict[str, object] = {}
     barrier = threading.Barrier(2)
@@ -287,7 +297,10 @@ def test_pending_user_and_auto_close_candidates_are_picked_up_end_to_end():
                    'INFORMATION_REQUIRED',:deadline)
                 """
             ),
-            {"ticket_id": pending_user_ticket_id, "deadline": (now - timedelta(hours=1)).replace(tzinfo=None)},
+            {
+                "ticket_id": pending_user_ticket_id,
+                "deadline": (now - timedelta(hours=1)).replace(tzinfo=None),
+            },
         )
         connection.execute(
             text(
