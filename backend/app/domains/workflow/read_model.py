@@ -77,7 +77,14 @@ class WorkflowReadModel:
         if raw is None:
             raise KeyError(f"ticket {ticket_id} not found")
         raw = dict(raw)
-        for key in ("sla_started_at", "sla_deadline", "pending_user_deadline", "resolved_at", "auto_close_at", "closed_at"):
+        for key in (
+            "sla_started_at",
+            "sla_deadline",
+            "pending_user_deadline",
+            "resolved_at",
+            "auto_close_at",
+            "closed_at",
+        ):
             raw[key] = _isoformat(raw.get(key))
         vendor_row = self.repository.get_latest_vendor_request(ticket_id)
         if vendor_row is not None:
