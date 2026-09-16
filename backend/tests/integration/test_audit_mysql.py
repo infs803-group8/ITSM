@@ -124,18 +124,24 @@ def _seed_vendor_request(
     vendor_org_id: int,
     requested_by_id: int,
     status: str,
-    responded_at: datetime | None = None,
 ) -> None:
+    """Insert one vendor_requests row satisfying chk_vendor_requests_status_times:
+    ACTIVE has both timestamps null, RESPONDED needs responded_at, CANCELLED
+    needs cancelled_at (and responded_at must stay null either way).
+    """
+    now = datetime(2026, 9, 1, 9, 0, 0, tzinfo=UTC)
+    responded_at = now if status == "RESPONDED" else None
+    cancelled_at = now if status == "CANCELLED" else None
     with engine.begin() as connection:
         connection.execute(
             text(
                 """
                 INSERT INTO vendor_requests
                   (vendor_request_id, ticket_id, vendor_org_id, requested_by_id,
-                   vendor_message, status, responded_at)
+                   vendor_message, status, responded_at, cancelled_at)
                 VALUES
                   (:id, :ticket_id, :vendor_org_id, :requested_by_id,
-                   'Vendor-safe message body', :status, :responded_at)
+                   'Vendor-safe message body', :status, :responded_at, :cancelled_at)
                 """
             ),
             {
@@ -145,6 +151,7 @@ def _seed_vendor_request(
                 "requested_by_id": requested_by_id,
                 "status": status,
                 "responded_at": responded_at,
+                "cancelled_at": cancelled_at,
             },
         )
 
@@ -547,7 +554,10 @@ def test_a_callers_rollback_discards_both_the_ticket_update_and_the_event():
         event_count = connection.execute(
             text("SELECT COUNT(*) FROM ticket_events WHERE ticket_id = :id"), {"id": ticket_id}
         ).scalar_one()
-    assert status == "NEW"
+    # The ticket was seeded with an assignee, so its original status is
+    # ASSIGNED (see _seed_ticket) -- the rollback must restore exactly
+    # that, not just "some" earlier status.
+    assert status == "ASSIGNED"
     assert event_count == 0
 
 
@@ -612,15 +622,17 @@ def test_duplicate_sla_cycle_event_is_rejected_by_the_unique_guard():
     )
 
     with Session(engine) as database:
-        AuditRepository(database).append(
-            ticket_id=ticket_id,
-            event_type=EventType.SLA_CYCLE_STARTED.value,
-            scope=EventScope.USER_VISIBLE.value,
-            actor_id=None,
-            cycle_no=1,
-        )
+        # append() calls flush() itself (see its docstring), so the
+        # duplicate-key error from the DB is raised right there -- it never
+        # reaches an uncommitted commit() call.
         with pytest.raises(IntegrityError):
-            database.commit()
+            AuditRepository(database).append(
+                ticket_id=ticket_id,
+                event_type=EventType.SLA_CYCLE_STARTED.value,
+                scope=EventScope.USER_VISIBLE.value,
+                actor_id=None,
+                cycle_no=1,
+            )
         # A job re-run is expected to catch IntegrityError, roll back, and
         # treat the cycle as already recorded -- verify the session is
         # actually usable again afterwards rather than left poisoned.
