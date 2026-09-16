@@ -41,7 +41,11 @@ class AssignmentRepositoryFake:
         return self.target_row
 
     def apply_assignment(self, *, ticket_id, status_code, assignee_id):
-        self.applied = {"ticket_id": ticket_id, "status_code": status_code, "assignee_id": assignee_id}
+        self.applied = {
+            "ticket_id": ticket_id,
+            "status_code": status_code,
+            "assignee_id": assignee_id,
+        }
 
 
 class AuditFake:
@@ -103,7 +107,11 @@ def escalate_service(ticket_row, target_row):
 def test_current_tier1_assignee_can_escalate_to_an_eligible_tier2():
     service = escalate_service(in_progress_ticket_row(), eligible_tier2_row())
     outcome = service.escalate(
-        ticket_id=1, actor=TIER1_ASSIGNEE, tier2_assignee_id=30, reason="Needs deeper diagnostics.", now=NOW
+        ticket_id=1,
+        actor=TIER1_ASSIGNEE,
+        tier2_assignee_id=30,
+        reason="Needs deeper diagnostics.",
+        now=NOW,
     )
 
     assert outcome.status is TicketStatus.ASSIGNED
@@ -153,7 +161,9 @@ def test_a_target_that_is_actually_tier1_is_rejected():
     target = eligible_tier2_row(role_code="ENGINEER_TIER1")
     service = escalate_service(in_progress_ticket_row(), target)
     with pytest.raises(ApplicationError) as excinfo:
-        service.escalate(ticket_id=1, actor=TIER1_ASSIGNEE, tier2_assignee_id=30, reason=None, now=NOW)
+        service.escalate(
+            ticket_id=1, actor=TIER1_ASSIGNEE, tier2_assignee_id=30, reason=None, now=NOW
+        )
     assert excinfo.value.code == "ASSIGNEE_NOT_ELIGIBLE"
     assert excinfo.value.status_code == 422
     assert service.assignment_repository.applied is None
@@ -167,7 +177,9 @@ def test_an_unavailable_tier2_target_is_rejected():
     target = eligible_tier2_row(is_available=0)
     service = escalate_service(in_progress_ticket_row(), target)
     with pytest.raises(ApplicationError) as excinfo:
-        service.escalate(ticket_id=1, actor=TIER1_ASSIGNEE, tier2_assignee_id=30, reason=None, now=NOW)
+        service.escalate(
+            ticket_id=1, actor=TIER1_ASSIGNEE, tier2_assignee_id=30, reason=None, now=NOW
+        )
     assert excinfo.value.code == "ASSIGNEE_NOT_ELIGIBLE"
 
 
@@ -175,14 +187,18 @@ def test_a_target_without_the_ticket_category_skill_is_rejected():
     target = eligible_tier2_row(has_skill=0)
     service = escalate_service(in_progress_ticket_row(), target)
     with pytest.raises(ApplicationError) as excinfo:
-        service.escalate(ticket_id=1, actor=TIER1_ASSIGNEE, tier2_assignee_id=30, reason=None, now=NOW)
+        service.escalate(
+            ticket_id=1, actor=TIER1_ASSIGNEE, tier2_assignee_id=30, reason=None, now=NOW
+        )
     assert excinfo.value.code == "ASSIGNEE_NOT_ELIGIBLE"
 
 
 def test_a_nonexistent_target_is_rejected():
     service = escalate_service(in_progress_ticket_row(), None)
     with pytest.raises(ApplicationError) as excinfo:
-        service.escalate(ticket_id=1, actor=TIER1_ASSIGNEE, tier2_assignee_id=999, reason=None, now=NOW)
+        service.escalate(
+            ticket_id=1, actor=TIER1_ASSIGNEE, tier2_assignee_id=999, reason=None, now=NOW
+        )
     assert excinfo.value.code == "ASSIGNEE_NOT_ELIGIBLE"
 
 
@@ -190,7 +206,9 @@ def test_a_ticket_that_is_not_in_progress_is_rejected():
     row = in_progress_ticket_row(status_code="ASSIGNED")
     service = escalate_service(row, eligible_tier2_row())
     with pytest.raises(ApplicationError) as excinfo:
-        service.escalate(ticket_id=1, actor=TIER1_ASSIGNEE, tier2_assignee_id=30, reason=None, now=NOW)
+        service.escalate(
+            ticket_id=1, actor=TIER1_ASSIGNEE, tier2_assignee_id=30, reason=None, now=NOW
+        )
     assert excinfo.value.code == "INVALID_STATUS_TRANSITION"
     assert service.assignment_repository.applied is None
 
@@ -199,12 +217,16 @@ def test_a_closed_ticket_is_rejected():
     row = in_progress_ticket_row(status_code="CLOSED")
     service = escalate_service(row, eligible_tier2_row())
     with pytest.raises(ApplicationError) as excinfo:
-        service.escalate(ticket_id=1, actor=TIER1_ASSIGNEE, tier2_assignee_id=30, reason=None, now=NOW)
+        service.escalate(
+            ticket_id=1, actor=TIER1_ASSIGNEE, tier2_assignee_id=30, reason=None, now=NOW
+        )
     assert excinfo.value.code == "TICKET_CLOSED"
 
 
 def test_missing_ticket_raises_404():
     service = escalate_service(None, eligible_tier2_row())
     with pytest.raises(ApplicationError) as excinfo:
-        service.escalate(ticket_id=1, actor=TIER1_ASSIGNEE, tier2_assignee_id=30, reason=None, now=NOW)
+        service.escalate(
+            ticket_id=1, actor=TIER1_ASSIGNEE, tier2_assignee_id=30, reason=None, now=NOW
+        )
     assert excinfo.value.status_code == 404

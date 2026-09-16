@@ -50,7 +50,9 @@ class VendorWorkflowRepositoryFake:
     def get_active_binding(self, *, ticket_id):
         return self.binding
 
-    def cancel_active_request(self, *, vendor_request_id, cancelled_at, cancelled_by_id, cancellation_reason):
+    def cancel_active_request(
+        self, *, vendor_request_id, cancelled_at, cancelled_by_id, cancellation_reason
+    ):
         self.cancelled = {
             "vendor_request_id": vendor_request_id,
             "cancelled_at": cancelled_at,
@@ -122,7 +124,9 @@ def active_binding(**overrides):
     return ActiveVendorBinding(**kwargs)
 
 
-def submit_resolution_service(ticket_row, *, vendor_row=None, binding=None, user_response_hours=120):
+def submit_resolution_service(
+    ticket_row, *, vendor_row=None, binding=None, user_response_hours=120
+):
     service = SubmitResolutionService(None)
     service.repository = WorkflowRepositoryFake(ticket_row=ticket_row)
     service.repository.vendor_row = vendor_row
@@ -166,10 +170,15 @@ def test_a_different_engineer_cannot_resolve():
 def test_current_tier2_assignee_can_resolve_from_pending_vendor_and_cancels_the_active_request():
     binding = active_binding()
     service = submit_resolution_service(
-        pending_vendor_ticket_row(), vendor_row={"vendor_org_id": 5, "status": "ACTIVE"}, binding=binding
+        pending_vendor_ticket_row(),
+        vendor_row={"vendor_org_id": 5, "status": "ACTIVE"},
+        binding=binding,
     )
     outcome = service.submit_resolution(
-        ticket_id=1, actor=TIER2_ASSIGNEE, resolution_summary="Vendor confirmed a firmware fix; applied directly.", now=NOW
+        ticket_id=1,
+        actor=TIER2_ASSIGNEE,
+        resolution_summary="Vendor confirmed a firmware fix; applied directly.",
+        now=NOW,
     )
 
     assert outcome.status is TicketStatus.PENDING_USER

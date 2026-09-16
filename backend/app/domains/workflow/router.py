@@ -115,7 +115,11 @@ def start_ticket(
     outcome = StartTicketService(database).start(ticket_id=ticket_id, actor=actor)
     database.commit()
     return _respond(
-        database, ticket_id=ticket_id, actor=actor, action=AvailableAction.START, event_id=outcome.event_id
+        database,
+        ticket_id=ticket_id,
+        actor=actor,
+        action=AvailableAction.START,
+        event_id=outcome.event_id,
     )
 
 
@@ -247,7 +251,9 @@ def confirm_resolution(
     database: Annotated[Session, Depends(get_db)],
     _request_id: Annotated[UUID | None, Depends(request_id_header)],
 ) -> TicketActionResponse:
-    outcome = ConfirmResolutionService(database).confirm_resolution(ticket_id=ticket_id, actor=actor)
+    outcome = ConfirmResolutionService(database).confirm_resolution(
+        ticket_id=ticket_id, actor=actor
+    )
     database.commit()
     return build_ticket_action_response(
         database,
