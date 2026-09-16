@@ -7,14 +7,11 @@ access, via a small pytest shim plus Python-3.11-stdlib shims
 (``enum.StrEnum``, ``datetime.UTC``) for the 3.10 sandbox.
 """
 
-from datetime import datetime
-
 import pytest
 
 from app.core.enums import TicketStatus, UserRole
 from app.domains.workflow.serializer import (
     ActorContext,
-    available_action_labels,
     build_ticket_state,
     build_ticket_workflow_view,
     derive_display_status,
@@ -88,17 +85,23 @@ def base_vendor_row(**overrides):
 @pytest.mark.parametrize("status", list(TicketStatus))
 def test_internal_roles_see_the_raw_status_unchanged(status):
     for actor in (TIER1, TIER2, MANAGER):
-        assert derive_display_status(status, actor=actor, vendor_request_status=None) == status.value
+        assert (
+            derive_display_status(status, actor=actor, vendor_request_status=None) == status.value
+        )
 
 
 def test_user_pending_vendor_masks_to_in_progress():
     assert (
-        derive_display_status(TicketStatus.PENDING_VENDOR, actor=USER, vendor_request_status="ACTIVE")
+        derive_display_status(
+            TicketStatus.PENDING_VENDOR, actor=USER, vendor_request_status="ACTIVE"
+        )
         == "IN_PROGRESS"
     )
 
 
-@pytest.mark.parametrize("status", [s for s in TicketStatus if s is not TicketStatus.PENDING_VENDOR])
+@pytest.mark.parametrize(
+    "status", [s for s in TicketStatus if s is not TicketStatus.PENDING_VENDOR]
+)
 def test_user_sees_every_other_status_unchanged(status):
     assert derive_display_status(status, actor=USER, vendor_request_status=None) == status.value
 
@@ -112,13 +115,18 @@ def test_vendor_sees_pending_vendor_when_their_request_is_active():
 
 def test_vendor_sees_in_progress_once_their_request_is_responded():
     assert (
-        derive_display_status(TicketStatus.IN_PROGRESS, actor=VENDOR, vendor_request_status="RESPONDED")
+        derive_display_status(
+            TicketStatus.IN_PROGRESS, actor=VENDOR, vendor_request_status="RESPONDED"
+        )
         == "IN_PROGRESS"
     )
 
 
 def test_vendor_sees_closed_regardless_of_vendor_request_status():
-    assert derive_display_status(TicketStatus.CLOSED, actor=VENDOR, vendor_request_status="RESPONDED") == "CLOSED"
+    assert (
+        derive_display_status(TicketStatus.CLOSED, actor=VENDOR, vendor_request_status="RESPONDED")
+        == "CLOSED"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +143,10 @@ def test_vendor_never_sees_requester_or_assignee():
 def test_other_roles_see_requester():
     raw = base_raw()
     for actor in (USER, TIER1, TIER2, MANAGER):
-        assert serialize_requester(raw, actor=actor) == {"user_id": 10, "display_name": "Rita Requester"}
+        assert serialize_requester(raw, actor=actor) == {
+            "user_id": 10,
+            "display_name": "Rita Requester",
+        }
 
 
 def test_assignee_summary_shape_when_assigned():
@@ -191,7 +202,10 @@ def test_sla_view_for_non_vendor_roles():
 def test_pending_user_view_present_only_when_pending():
     raw = base_raw()
     assert serialize_pending_user(raw, actor=USER) is None
-    raw = base_raw(pending_user_reason="RESOLUTION_CONFIRMATION", pending_user_deadline="2026-09-10T00:00:00+00:00")
+    raw = base_raw(
+        pending_user_reason="RESOLUTION_CONFIRMATION",
+        pending_user_deadline="2026-09-10T00:00:00+00:00",
+    )
     assert serialize_pending_user(raw, actor=USER) == {
         "reason": "RESOLUTION_CONFIRMATION",
         "deadline": "2026-09-10T00:00:00+00:00",
@@ -199,7 +213,9 @@ def test_pending_user_view_present_only_when_pending():
 
 
 def test_resolution_view_allows_null_type_while_confirmation_pending():
-    raw = base_raw(resolution_summary="Fixed it.", resolution_type=None, resolved_at=None, auto_close_at=None)
+    raw = base_raw(
+        resolution_summary="Fixed it.", resolution_type=None, resolved_at=None, auto_close_at=None
+    )
     assert serialize_resolution(raw, actor=TIER1) == {
         "summary": "Fixed it.",
         "type": None,
@@ -271,13 +287,17 @@ def test_build_ticket_state_maps_raw_fields():
 
 
 def test_closed_ticket_has_no_available_actions():
-    raw = base_raw(status_code="CLOSED", closure_type="MANUAL_USER", closed_at="2026-09-06T00:00:00+00:00")
+    raw = base_raw(
+        status_code="CLOSED", closure_type="MANUAL_USER", closed_at="2026-09-06T00:00:00+00:00"
+    )
     view = build_ticket_workflow_view(raw, None, actor=MANAGER)
     assert view["available_actions"] == []
 
 
 def test_unassigned_ticket_offers_assign_only_to_manager():
-    raw = base_raw(status_code="UNASSIGNED", assignee_id=None, assignee_user_id=None, assignee_role_code=None)
+    raw = base_raw(
+        status_code="UNASSIGNED", assignee_id=None, assignee_user_id=None, assignee_role_code=None
+    )
     manager_view = build_ticket_workflow_view(raw, None, actor=MANAGER)
     assert "ASSIGN" in manager_view["available_actions"]
     assert manager_view["available_actions"] == sorted(manager_view["available_actions"])
@@ -286,7 +306,9 @@ def test_unassigned_ticket_offers_assign_only_to_manager():
 
 
 def test_public_action_labels_never_include_non_workflow_actions():
-    raw = base_raw(status_code="UNASSIGNED", assignee_id=None, assignee_user_id=None, assignee_role_code=None)
+    raw = base_raw(
+        status_code="UNASSIGNED", assignee_id=None, assignee_user_id=None, assignee_role_code=None
+    )
     view = build_ticket_workflow_view(raw, None, actor=MANAGER)
     assert "EDIT" not in view["available_actions"]
     assert "COMMENT" not in view["available_actions"]
