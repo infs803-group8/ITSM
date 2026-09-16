@@ -73,7 +73,9 @@ class SlaCycleService:
         self._apply_new_cycle(ticket_id=ticket_id, actor_id=actor_id, window=window)
         return window
 
-    def _apply_new_cycle(self, *, ticket_id: int, actor_id: int | None, window: CycleWindow) -> None:
+    def _apply_new_cycle(
+        self, *, ticket_id: int, actor_id: int | None, window: CycleWindow
+    ) -> None:
         self.repository.apply_cycle_window(ticket_id, window, sla_status=_ON_TRACK)
         self.audit.append_event(
             ticket_id=ticket_id,

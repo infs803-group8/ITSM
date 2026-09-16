@@ -302,7 +302,10 @@ def serialize_vendor_request(
         return None
     if actor.role is UserRole.USER:
         return None
-    if actor.role is UserRole.EXTERNAL_VENDOR and vendor_row["vendor_org_id"] != actor.vendor_org_id:
+    if (
+        actor.role is UserRole.EXTERNAL_VENDOR
+        and vendor_row["vendor_org_id"] != actor.vendor_org_id
+    ):
         return None
     return {
         "vendor_request_id": vendor_row["vendor_request_id"],
