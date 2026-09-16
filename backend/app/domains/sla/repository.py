@@ -77,7 +77,9 @@ class SlaRepository:
         )
         return int(row["resolved_window_hours"])
 
-    def get_cycle_state(self, ticket_id: int, *, for_update: bool = False) -> Mapping[str, Any] | None:
+    def get_cycle_state(
+        self, ticket_id: int, *, for_update: bool = False
+    ) -> Mapping[str, Any] | None:
         """Includes ``status_code`` alongside the four SLA columns -- C035's
         threshold scan needs it (only UNASSIGNED/ASSIGNED/IN_PROGRESS/
         PENDING_VENDOR/REOPENED tickets keep accruing Engineering SLA

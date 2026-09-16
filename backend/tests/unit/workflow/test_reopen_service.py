@@ -133,12 +133,20 @@ def resolved_ticket_row(**overrides):
 
 
 def eligible_engineer_row(**overrides):
-    row = {"user_id": 20, "role_code": "ENGINEER_TIER1", "is_active": 1, "is_available": 1, "has_skill": 1}
+    row = {
+        "user_id": 20,
+        "role_code": "ENGINEER_TIER1",
+        "is_active": 1,
+        "is_available": 1,
+        "has_skill": 1,
+    }
     row.update(overrides)
     return row
 
 
-def reopen_service(ticket_row, *, monkeypatch, target_row=None, winner_id=None, expired=False, comment_id=9101):
+def reopen_service(
+    ticket_row, *, monkeypatch, target_row=None, winner_id=None, expired=False, comment_id=9101
+):
     service = ReopenTicketService(None)
     service.repository = WorkflowRepositoryFake(ticket_row=ticket_row)
     service.assignment_repository = AssignmentRepositoryFake(target_row=target_row)
@@ -182,7 +190,9 @@ def test_the_requester_can_reopen_and_keeps_the_previous_assignee_if_still_eligi
     assert outcome.event_id == 11002
 
 
-def test_reopen_falls_back_to_auto_assignment_when_the_previous_assignee_is_no_longer_eligible(monkeypatch):
+def test_reopen_falls_back_to_auto_assignment_when_the_previous_assignee_is_no_longer_eligible(
+    monkeypatch,
+):
     service = reopen_service(
         resolved_ticket_row(),
         monkeypatch=monkeypatch,

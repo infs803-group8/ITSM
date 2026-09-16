@@ -121,7 +121,9 @@ def request_vendor_service(
 ):
     database = database or DatabaseFake()
     service = RequestVendorService(database)
-    service.workflow_repository = WorkflowRepositoryFake(ticket_row=ticket_row, vendor_row=vendor_row)
+    service.workflow_repository = WorkflowRepositoryFake(
+        ticket_row=ticket_row, vendor_row=vendor_row
+    )
     service.repository = VendorWorkflowRepositoryFake(
         org_row=org_row, raise_integrity_error=raise_integrity_error
     )
