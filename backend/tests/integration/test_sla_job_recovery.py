@@ -233,10 +233,16 @@ def test_two_concurrent_monitor_runs_against_the_same_overdue_ticket_write_the_e
     monitor processes/ECS Tasks) both pick up the same overdue ticket in
     the same instant. The row lock (SELECT ... FOR UPDATE inside
     evaluate_threshold_scan) must serialise them, so exactly one of them
-    writes the event and neither fails -- the uq_ticket_events_cycle_guard
-    unique key is the last-resort backstop if that lock somehow didn't
-    catch it, so this test also incidentally proves that constraint is
-    never actually needed on the happy path.
+    writes the winning outcome and neither fails -- the
+    uq_ticket_events_cycle_guard unique key is the last-resort backstop
+    if that lock somehow didn't catch it, so this test also incidentally
+    proves that constraint is never actually needed on the happy path.
+
+    The ticket is seeded 49h into its 48h window, i.e. already past both
+    the 80% (38.4h) and 100% marks before either thread ever looks at
+    it -- same Q09 backfill shape as the standalone backfill test above,
+    so the winner's own single evaluate_threshold_scan call writes BOTH
+    SLA_AT_RISK and SLA_OVERDUE (in that order), not just SLA_OVERDUE.
 
     The loser's own outcome is NOT asserted as a specific processed/
     skipped split: get_threshold_scan_candidates is a plain (non-locking)
@@ -280,7 +286,9 @@ def test_two_concurrent_monitor_runs_against_the_same_overdue_ticket_write_the_e
     assert sorted(processed_counts) == [0, 1]  # exactly one of the two actually wrote the event
     assert any(results[name].threshold.failed for name in ("first", "second")) is False
     assert _fetch_sla_status(engine, ticket_id) == "OVERDUE"
-    assert _fetch_event_types(engine, ticket_id) == ["SLA_OVERDUE"]  # never duplicated
+    # Backfilled AT_RISK + OVERDUE from the single winning call, in that
+    # order, and never duplicated by the loser.
+    assert _fetch_event_types(engine, ticket_id) == ["SLA_AT_RISK", "SLA_OVERDUE"]
 
 
 def test_pending_user_and_auto_close_candidates_are_picked_up_end_to_end():
