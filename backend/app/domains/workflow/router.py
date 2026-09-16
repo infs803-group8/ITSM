@@ -114,7 +114,11 @@ def start_ticket(
     outcome = StartTicketService(database).start(ticket_id=ticket_id, actor=actor)
     database.commit()
     return _respond(
-        database, ticket_id=ticket_id, actor=actor, action=AvailableAction.START, event_id=outcome.event_id
+        database,
+        ticket_id=ticket_id,
+        actor=actor,
+        action=AvailableAction.START,
+        event_id=outcome.event_id,
     )
 
 

@@ -19,11 +19,11 @@ from app.core.clock import utc_now
 from app.core.enums import EventScope, EventType, UserRole
 from app.core.errors import ApplicationError
 from app.domains.audit.service import AuditService
+from app.domains.vendor_workflow.repository import VendorWorkflowRepository
 from app.domains.workflow.action_engine import evaluate_or_raise, lock_ticket_state
 from app.domains.workflow.error_mapping import error_for_denial
 from app.domains.workflow.repository import WorkflowRepository
 from app.domains.workflow.state_machine import ActionRequest, TicketStatus, WorkflowAction
-from app.domains.vendor_workflow.repository import VendorWorkflowRepository
 
 
 @dataclass(frozen=True)
