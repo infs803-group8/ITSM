@@ -111,7 +111,9 @@ class DeadlineService:
             summary = snapshot.resolution_summary
 
         resolved_at = now
-        close_at = auto_close_deadline(resolved_at=resolved_at, resolved_window_hours=resolved_window_hours)
+        close_at = auto_close_deadline(
+            resolved_at=resolved_at, resolved_window_hours=resolved_window_hours
+        )
 
         self.repository.apply_auto_resolution(
             ticket_id=snapshot.ticket_id,
