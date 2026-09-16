@@ -16,8 +16,8 @@ from app.domains.workflow.service import ConfirmResolutionService
 from app.domains.workflow.state_machine import TicketStatus
 
 NOW = datetime(2026, 9, 1, 0, 0, 0, tzinfo=UTC)
-REQUESTER = RequestContext(user_id=10, role="END_USER")
-OTHER_USER = RequestContext(user_id=11, role="END_USER")
+REQUESTER = RequestContext(user_id=10, role="USER")
+OTHER_USER = RequestContext(user_id=11, role="USER")
 
 
 class WorkflowRepositoryFake:
