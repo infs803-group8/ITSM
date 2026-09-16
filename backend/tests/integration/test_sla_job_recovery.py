@@ -7,7 +7,7 @@ test_member_a_mysql.py and test_create_assignment.py:
 
     RUN_MYSQL_INTEGRATION=1 pytest tests/integration/test_sla_job_recovery.py
 
-Reuses test_create_assignment.py's own service_desk_member_c_test schema
+Reuses test_create_assignment.py's own service_desk_member_a_test schema
 (both are C's integration tests) rather than member A's schema, per that
 file's own schema-per-member convention note.
 
@@ -64,14 +64,14 @@ pytestmark = pytest.mark.skipif(
 
 def _engine():
     settings = get_settings()
-    assert settings.database_url.endswith("/service_desk_member_c_test")
+    assert settings.database_url.endswith("/service_desk_member_a_test")
     return create_engine(settings.database_url)
 
 
 def _reset(engine) -> None:
     with engine.begin() as connection:
         connection.execute(text("SET FOREIGN_KEY_CHECKS=0"))
-        for table in ("ticket_events", "tickets", "user_skills", "users"):
+        for table in ("tickets", "user_skills", "users"):
             connection.execute(text(f"DELETE FROM {table}"))
         connection.execute(text("SET FOREIGN_KEY_CHECKS=1"))
 
@@ -155,7 +155,7 @@ def test_a_long_missed_scan_backfills_at_risk_then_overdue_and_a_rerun_adds_noth
     engine = _engine()
     _reset(engine)
     _seed_engineer_and_requester(engine)
-    ticket_id = 80001
+    ticket_id = 90001
     _seed_in_progress_ticket(
         engine, ticket_id=ticket_id, sla_started_at=datetime.now(UTC) - timedelta(days=3)
     )
@@ -189,8 +189,8 @@ def test_a_single_ticket_failure_does_not_stop_the_rest_of_the_batch():
     engine = _engine()
     _reset(engine)
     _seed_engineer_and_requester(engine)
-    healthy_ticket_id = 80011
-    broken_ticket_id = 80012
+    healthy_ticket_id = 90011
+    broken_ticket_id = 90012
     now = datetime.now(UTC)
     _seed_in_progress_ticket(
         engine, ticket_id=healthy_ticket_id, sla_started_at=now - timedelta(hours=39)
@@ -235,7 +235,7 @@ def test_two_concurrent_monitor_runs_against_the_same_overdue_ticket_write_the_e
     engine = _engine()
     _reset(engine)
     _seed_engineer_and_requester(engine)
-    ticket_id = 80021
+    ticket_id = 90021
     _seed_in_progress_ticket(
         engine, ticket_id=ticket_id, sla_started_at=datetime.now(UTC) - timedelta(hours=49)
     )
@@ -280,8 +280,8 @@ def test_pending_user_and_auto_close_candidates_are_picked_up_end_to_end():
     _reset(engine)
     _seed_engineer_and_requester(engine)
     now = datetime.now(UTC)
-    pending_user_ticket_id = 80031
-    resolved_ticket_id = 80032
+    pending_user_ticket_id = 90031
+    resolved_ticket_id = 90032
 
     with engine.begin() as connection:
         connection.execute(
@@ -313,7 +313,7 @@ def test_pending_user_and_auto_close_candidates_are_picked_up_end_to_end():
                 VALUES
                   (:ticket_id,9101,'Resolved ticket','Seeded for C037','NETWORK','MEDIUM',
                    'RESOLVED',9102,1,'MET',
-                   'Fixed the router.','ENGINEER_RESOLVED',:resolved_at,:auto_close_at,9102)
+                   'Fixed the router.','USER_CONFIRMED',:resolved_at,:auto_close_at,9102)
                 """
             ),
             {

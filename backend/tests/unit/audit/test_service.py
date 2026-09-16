@@ -9,6 +9,15 @@ from app.domains.audit.access_policy import TicketAccessRecord
 from app.domains.audit.service import AuditService
 
 
+class _FakeAppendedEvent:
+    """Stands in for the ORM ``TicketEvent`` row ``AuditRepository.append``
+    returns -- only ``event_id`` is populated by SQLAlchemy's flush, and
+    that's the only attribute ``AuditService.append_event`` reads."""
+
+    def __init__(self, event_id: int) -> None:
+        self.event_id = event_id
+
+
 class AuditRepositoryFake:
     def __init__(self, *, ticket=None, rows=None, total=0):
         self.ticket = ticket
@@ -16,12 +25,16 @@ class AuditRepositoryFake:
         self.total = total
         self.append_calls: list[dict] = []
         self.list_calls: list[dict] = []
+        self._next_event_id = 1
 
     def get_ticket_access(self, ticket_id, actor):
         return self.ticket
 
     def append(self, **kwargs):
         self.append_calls.append(kwargs)
+        event = _FakeAppendedEvent(self._next_event_id)
+        self._next_event_id += 1
+        return event
 
     def list_events(self, **kwargs):
         self.list_calls.append(kwargs)

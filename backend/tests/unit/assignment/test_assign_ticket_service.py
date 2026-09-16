@@ -106,10 +106,15 @@ def test_assigning_an_unassigned_ticket_to_an_eligible_tier1_succeeds():
 
 
 def test_reassigning_writes_a_reassigned_event_not_assigned():
+    # Baseline Sec 4.5: ASSIGNED/IN_PROGRESS only accepts Manager
+    # reassignment while OVERDUE, and only onto a Tier 2 target.
     row = unassigned_ticket_row(
-        status_code="ASSIGNED", assignee_id=99, assignee_role_code="ENGINEER_TIER1"
+        status_code="ASSIGNED",
+        assignee_id=99,
+        assignee_role_code="ENGINEER_TIER1",
+        sla_status_code="OVERDUE",
     )
-    service = service_with(row, eligible_tier1_row())
+    service = service_with(row, eligible_tier1_row(role_code="ENGINEER_TIER2"))
     service.assign_ticket(ticket_id=1, actor=MANAGER, assignee_id=20, reason="rebalance", now=NOW)
     assert service.audit.events[0]["event_type"].value == "REASSIGNED"
     assert service.audit.events[0]["metadata"]["reason"] == "rebalance"

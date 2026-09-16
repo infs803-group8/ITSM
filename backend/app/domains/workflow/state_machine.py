@@ -395,7 +395,7 @@ def _eval_submit_resolution(state: TicketState, request: ActionRequest) -> Trans
         ):
             return TransitionResult.deny(
                 _NOT_ASSIGNEE,
-                "Only the ticket's current Tier 2 assignee may resolve without waiting on the vendor.",
+                "Only the ticket's current Tier 2 assignee may resolve without waiting on vendor.",
             )
         return TransitionResult(
             allowed=True,
@@ -481,7 +481,7 @@ def _eval_auto_resolve_confirmation_timeout(
     ):
         return TransitionResult.deny(
             _INVALID_TRANSITION,
-            "Auto-resolve-confirmation-timeout requires a pending-user/resolution-confirmation ticket.",
+            "Auto-resolve-confirmation-timeout needs a pending-user/resolution-confirmation ticket",
         )
     return TransitionResult(
         allowed=True,

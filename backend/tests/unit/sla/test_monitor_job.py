@@ -237,7 +237,6 @@ def test_a_single_ticket_failure_is_isolated_counted_and_does_not_abort_the_batc
     same page from being attempted, and must show up as failed rather
     than silently vanishing.
     """
-    sla = SlaServiceFake(pages=[[201, 202]], outcomes={202: "processed-outcome"})
 
     class RaisingSlaService(SlaServiceFake):
         def evaluate_threshold_scan(self, *, ticket_id, now):
