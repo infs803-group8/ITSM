@@ -17,10 +17,14 @@ from app.domains.assignment.repository import AssignmentRepository
 from app.domains.assignment.service import AssignmentService
 from app.domains.audit.service import AuditService
 from app.domains.sla.service import SlaCycleService
+from app.domains.vendor_workflow.repository import VendorWorkflowRepository
 from app.domains.workflow.action_engine import evaluate_or_raise, lock_ticket_state
 from app.domains.workflow.comment_gateway import insert_workflow_comment
-from app.domains.workflow.deadline_service import DeadlineService, PendingUserSnapshot, ResolvedSnapshot
-from app.domains.vendor_workflow.repository import VendorWorkflowRepository
+from app.domains.workflow.deadline_service import (
+    DeadlineService,
+    PendingUserSnapshot,
+    ResolvedSnapshot,
+)
 from app.domains.workflow.repository import WorkflowRepository
 from app.domains.workflow.state_machine import ActionRequest, TicketStatus, WorkflowAction
 

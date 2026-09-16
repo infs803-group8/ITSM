@@ -135,7 +135,9 @@ def test_current_assignee_can_request_user_info(monkeypatch):
         "USER_INFO_REQUESTED",
     ]
     assert service.audit.events[0]["comment_id"] == 7001
-    assert "comment_id" not in service.audit.events[1] or service.audit.events[1]["comment_id"] is None
+    assert (
+        "comment_id" not in service.audit.events[1] or service.audit.events[1]["comment_id"] is None
+    )
     # AuditFake hands out 6001 then 6002 -- the outcome's event_id is the
     # USER_INFO_REQUESTED event (the second append_event call), not the
     # COMMENT_ADDED one.
@@ -143,7 +145,9 @@ def test_current_assignee_can_request_user_info(monkeypatch):
 
 
 def test_blank_message_is_rejected_before_touching_the_ticket(monkeypatch):
-    service, _captured = request_user_info_service(in_progress_ticket_row(), monkeypatch=monkeypatch)
+    service, _captured = request_user_info_service(
+        in_progress_ticket_row(), monkeypatch=monkeypatch
+    )
     with pytest.raises(ApplicationError) as excinfo:
         service.request_user_info(ticket_id=1, actor=ASSIGNEE, message="   ", now=NOW)
     assert excinfo.value.code == "VALIDATION_ERROR"
@@ -153,16 +157,22 @@ def test_blank_message_is_rejected_before_touching_the_ticket(monkeypatch):
 
 
 def test_a_different_engineer_cannot_request_user_info(monkeypatch):
-    service, _captured = request_user_info_service(in_progress_ticket_row(), monkeypatch=monkeypatch)
+    service, _captured = request_user_info_service(
+        in_progress_ticket_row(), monkeypatch=monkeypatch
+    )
     with pytest.raises(ApplicationError) as excinfo:
-        service.request_user_info(ticket_id=1, actor=OTHER_ENGINEER, message="Need more info.", now=NOW)
+        service.request_user_info(
+            ticket_id=1, actor=OTHER_ENGINEER, message="Need more info.", now=NOW
+        )
     assert excinfo.value.code == "DATA_SCOPE_DENIED"
     assert excinfo.value.status_code == 403
     assert service.repository.applied is None
 
 
 def test_the_requester_cannot_call_this_action(monkeypatch):
-    service, _captured = request_user_info_service(in_progress_ticket_row(), monkeypatch=monkeypatch)
+    service, _captured = request_user_info_service(
+        in_progress_ticket_row(), monkeypatch=monkeypatch
+    )
     with pytest.raises(ApplicationError) as excinfo:
         service.request_user_info(ticket_id=1, actor=REQUESTER, message="Need more info.", now=NOW)
     assert excinfo.value.code == "DATA_SCOPE_DENIED"
