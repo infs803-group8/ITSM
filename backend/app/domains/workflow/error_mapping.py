@@ -38,4 +38,6 @@ def error_for_denial(denial_code: str | None, denial_message: str | None) -> App
     back to a generic 422 rather than crashing the request.
     """
     error_code, status_code = _DENIAL_TO_ERROR.get(denial_code or "", ("INVALID_REQUEST", 422))
-    return ApplicationError(error_code, denial_message or "The request could not be completed.", status_code)
+    return ApplicationError(
+        error_code, denial_message or "The request could not be completed.", status_code
+    )
