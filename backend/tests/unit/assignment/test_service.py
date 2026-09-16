@@ -56,7 +56,9 @@ def test_assign_new_ticket_returns_the_lowest_load_candidate():
     )
     winner = service.assign_new_ticket(ticket_id=42, category_code="HARDWARE")
     assert winner == 2
-    assert repository.mark_last_assigned_calls == [{"user_id": 2, "when": repository.mark_last_assigned_calls[0]["when"]}]
+    assert repository.mark_last_assigned_calls == [
+        {"user_id": 2, "when": repository.mark_last_assigned_calls[0]["when"]}
+    ]
 
 
 def test_assign_new_ticket_marks_only_the_winner_as_last_assigned():
