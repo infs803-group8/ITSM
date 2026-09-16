@@ -232,12 +232,19 @@ def test_two_concurrent_monitor_runs_against_the_same_overdue_ticket_write_the_e
     """T-JOB-03: two independent Sessions (simulating two independent
     monitor processes/ECS Tasks) both pick up the same overdue ticket in
     the same instant. The row lock (SELECT ... FOR UPDATE inside
-    evaluate_threshold_scan) must serialise them, and re-validation must
-    make the loser's turn a no-op rather than a duplicate write --
-    the uq_ticket_events_cycle_guard unique key is the last-resort
-    backstop if re-validation somehow didn't catch it, so this test also
-    incidentally proves that constraint is never actually needed on the
-    happy path.
+    evaluate_threshold_scan) must serialise them, so exactly one of them
+    writes the event and neither fails -- the uq_ticket_events_cycle_guard
+    unique key is the last-resort backstop if that lock somehow didn't
+    catch it, so this test also incidentally proves that constraint is
+    never actually needed on the happy path.
+
+    The loser's own outcome is NOT asserted as a specific processed/
+    skipped split: get_threshold_scan_candidates is a plain (non-locking)
+    SELECT, so whether the loser's candidate fetch happens to run before
+    the winner commits (candidate seen, then re-validated out under lock
+    -> skipped) or after (candidate no longer offered at all, since it is
+    already OVERDUE -> zero candidates that page) is a genuine race with
+    no guaranteed winner -- both are correct, both prove no double write.
     """
     engine = _engine()
     _reset(engine)
@@ -266,10 +273,11 @@ def test_two_concurrent_monitor_runs_against_the_same_overdue_ticket_write_the_e
     for thread in threads:
         thread.join(timeout=30)
 
+    # The loser's own processed/skipped split is a genuine race (see
+    # docstring) -- only that exactly one write happened and nothing
+    # failed is guaranteed.
     processed_counts = [results[name].threshold.processed for name in ("first", "second")]
-    skipped_counts = [results[name].threshold.skipped for name in ("first", "second")]
     assert sorted(processed_counts) == [0, 1]  # exactly one of the two actually wrote the event
-    assert sorted(skipped_counts) == [0, 1]
     assert any(results[name].threshold.failed for name in ("first", "second")) is False
     assert _fetch_sla_status(engine, ticket_id) == "OVERDUE"
     assert _fetch_event_types(engine, ticket_id) == ["SLA_OVERDUE"]  # never duplicated
