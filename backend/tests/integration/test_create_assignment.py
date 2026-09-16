@@ -17,7 +17,7 @@ Run only against a disposable schema, same convention as
 
     RUN_MYSQL_INTEGRATION=1 pytest tests/integration/test_create_assignment.py
 
-Uses its own ``service_desk_member_c_test`` schema name rather than
+Uses its own ``service_desk_member_a_test`` schema name rather than
 member A's, so the two integration tests never share -- or corrupt -- each
 other's fixture data; this schema-per-member convention is not yet agreed
 with the team and should be reconciled once everyone has an integration
@@ -118,7 +118,7 @@ def _fetch_events(engine, ticket_id: int) -> list[str]:
 
 def _engine():
     settings = get_settings()
-    assert settings.database_url.endswith("/service_desk_member_c_test")
+    assert settings.database_url.endswith("/service_desk_member_a_test")
     return create_engine(settings.database_url)
 
 
