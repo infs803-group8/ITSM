@@ -46,7 +46,9 @@ def request(action: WorkflowAction, **overrides) -> ActionRequest:
 @pytest.mark.parametrize("action", list(WorkflowAction))
 def test_every_action_is_denied_on_a_closed_ticket(action):
     closed = state(status=TicketStatus.CLOSED)
-    result = evaluate(closed, request(action, actor_role=UserRole.SERVICE_DESK_MANAGER, actor_id=99))
+    result = evaluate(
+        closed, request(action, actor_role=UserRole.SERVICE_DESK_MANAGER, actor_id=99)
+    )
     assert result.allowed is False
     assert result.denial_code == "TICKET_CLOSED"
 
@@ -271,7 +273,8 @@ def test_assign_reopened_with_unavailable_original_assignee():
 def test_assign_without_a_concrete_target_reports_the_action_as_available():
     unassigned = state(status=TicketStatus.UNASSIGNED, assignee_id=None, assignee_role=None)
     result = evaluate(
-        unassigned, request(WorkflowAction.ASSIGN, actor_role=UserRole.SERVICE_DESK_MANAGER, actor_id=99)
+        unassigned,
+        request(WorkflowAction.ASSIGN, actor_role=UserRole.SERVICE_DESK_MANAGER, actor_id=99),
     )
     assert result.allowed
 
@@ -353,7 +356,9 @@ def test_start_by_a_non_assignee_is_rejected():
 def test_request_user_info_pauses_the_cycle():
     result = evaluate(
         state(),
-        request(WorkflowAction.REQUEST_USER_INFO, actor_role=UserRole.ENGINEER_TIER1, actor_id=TIER1),
+        request(
+            WorkflowAction.REQUEST_USER_INFO, actor_role=UserRole.ENGINEER_TIER1, actor_id=TIER1
+        ),
     )
     assert result.allowed
     assert result.target_status == TicketStatus.PENDING_USER
@@ -375,9 +380,12 @@ def test_user_resume_covers_both_resume_and_issue_persists(reason):
 
 
 def test_user_resume_by_someone_other_than_the_requester_is_denied():
-    pending = state(status=TicketStatus.PENDING_USER, pending_user_reason=PendingUserReason.INFORMATION_REQUIRED)
+    pending = state(
+        status=TicketStatus.PENDING_USER, pending_user_reason=PendingUserReason.INFORMATION_REQUIRED
+    )
     result = evaluate(
-        pending, request(WorkflowAction.USER_RESUME, actor_role=UserRole.USER, actor_id=REQUESTER + 1)
+        pending,
+        request(WorkflowAction.USER_RESUME, actor_role=UserRole.USER, actor_id=REQUESTER + 1),
     )
     assert result.allowed is False
     assert result.denial_code == "NOT_TICKET_REQUESTER"
@@ -486,7 +494,9 @@ def test_vendor_response_without_an_active_request_is_denied():
 def test_submit_resolution_from_in_progress_succeeds():
     result = evaluate(
         state(),
-        request(WorkflowAction.SUBMIT_RESOLUTION, actor_role=UserRole.ENGINEER_TIER1, actor_id=TIER1),
+        request(
+            WorkflowAction.SUBMIT_RESOLUTION, actor_role=UserRole.ENGINEER_TIER1, actor_id=TIER1
+        ),
     )
     assert result.allowed
     assert result.target_status == TicketStatus.PENDING_USER
@@ -503,16 +513,22 @@ def test_submit_resolution_from_pending_vendor_cancels_the_active_request():
     )
     result = evaluate(
         pending_vendor,
-        request(WorkflowAction.SUBMIT_RESOLUTION, actor_role=UserRole.ENGINEER_TIER2, actor_id=TIER2),
+        request(
+            WorkflowAction.SUBMIT_RESOLUTION, actor_role=UserRole.ENGINEER_TIER2, actor_id=TIER2
+        ),
     )
     assert result.allowed
     assert result.vendor_request_effect == "CANCEL_ACTIVE"
 
 
 def test_confirm_resolution_by_the_requester_succeeds():
-    pending = state(status=TicketStatus.PENDING_USER, pending_user_reason=PendingUserReason.RESOLUTION_CONFIRMATION)
+    pending = state(
+        status=TicketStatus.PENDING_USER,
+        pending_user_reason=PendingUserReason.RESOLUTION_CONFIRMATION,
+    )
     result = evaluate(
-        pending, request(WorkflowAction.CONFIRM_RESOLUTION, actor_role=UserRole.USER, actor_id=REQUESTER)
+        pending,
+        request(WorkflowAction.CONFIRM_RESOLUTION, actor_role=UserRole.USER, actor_id=REQUESTER),
     )
     assert result.allowed
     assert result.target_status == TicketStatus.RESOLVED
@@ -520,9 +536,12 @@ def test_confirm_resolution_by_the_requester_succeeds():
 
 
 def test_confirm_resolution_wrong_pending_reason_is_denied():
-    pending = state(status=TicketStatus.PENDING_USER, pending_user_reason=PendingUserReason.INFORMATION_REQUIRED)
+    pending = state(
+        status=TicketStatus.PENDING_USER, pending_user_reason=PendingUserReason.INFORMATION_REQUIRED
+    )
     result = evaluate(
-        pending, request(WorkflowAction.CONFIRM_RESOLUTION, actor_role=UserRole.USER, actor_id=REQUESTER)
+        pending,
+        request(WorkflowAction.CONFIRM_RESOLUTION, actor_role=UserRole.USER, actor_id=REQUESTER),
     )
     assert result.allowed is False
 
@@ -532,7 +551,9 @@ def test_confirm_resolution_wrong_pending_reason_is_denied():
 
 def test_reopen_by_requester_starts_a_new_cycle():
     resolved = state(status=TicketStatus.RESOLVED)
-    result = evaluate(resolved, request(WorkflowAction.REOPEN, actor_role=UserRole.USER, actor_id=REQUESTER))
+    result = evaluate(
+        resolved, request(WorkflowAction.REOPEN, actor_role=UserRole.USER, actor_id=REQUESTER)
+    )
     assert result.allowed
     assert result.target_status == TicketStatus.REOPENED
     assert result.cycle_effect == "NEW"
@@ -540,7 +561,9 @@ def test_reopen_by_requester_starts_a_new_cycle():
 
 def test_manual_close_by_requester_succeeds():
     resolved = state(status=TicketStatus.RESOLVED)
-    result = evaluate(resolved, request(WorkflowAction.MANUAL_CLOSE, actor_role=UserRole.USER, actor_id=REQUESTER))
+    result = evaluate(
+        resolved, request(WorkflowAction.MANUAL_CLOSE, actor_role=UserRole.USER, actor_id=REQUESTER)
+    )
     assert result.allowed
     assert result.closure_type == ClosureType.MANUAL_USER
 
@@ -548,21 +571,27 @@ def test_manual_close_by_requester_succeeds():
 def test_manual_close_by_a_non_requester_is_denied():
     resolved = state(status=TicketStatus.RESOLVED)
     result = evaluate(
-        resolved, request(WorkflowAction.MANUAL_CLOSE, actor_role=UserRole.USER, actor_id=REQUESTER + 1)
+        resolved,
+        request(WorkflowAction.MANUAL_CLOSE, actor_role=UserRole.USER, actor_id=REQUESTER + 1),
     )
     assert result.allowed is False
     assert result.denial_code == "NOT_TICKET_REQUESTER"
 
 
 def test_auto_resolve_no_response_requires_information_required_reason():
-    pending = state(status=TicketStatus.PENDING_USER, pending_user_reason=PendingUserReason.INFORMATION_REQUIRED)
+    pending = state(
+        status=TicketStatus.PENDING_USER, pending_user_reason=PendingUserReason.INFORMATION_REQUIRED
+    )
     result = evaluate(pending, request(WorkflowAction.AUTO_RESOLVE_NO_RESPONSE))
     assert result.allowed
     assert result.resolution_type == ResolutionType.AUTO_NO_USER_RESPONSE
 
 
 def test_auto_resolve_confirmation_timeout_requires_resolution_confirmation_reason():
-    pending = state(status=TicketStatus.PENDING_USER, pending_user_reason=PendingUserReason.RESOLUTION_CONFIRMATION)
+    pending = state(
+        status=TicketStatus.PENDING_USER,
+        pending_user_reason=PendingUserReason.RESOLUTION_CONFIRMATION,
+    )
     result = evaluate(pending, request(WorkflowAction.AUTO_RESOLVE_CONFIRMATION_TIMEOUT))
     assert result.allowed
     assert result.resolution_type == ResolutionType.AUTO_CONFIRMATION_TIMEOUT
