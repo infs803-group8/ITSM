@@ -21,6 +21,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app.core.clock import as_utc
 from app.core.enums import EventScope, EventType
 from app.core.errors import ApplicationError
 from app.domains.audit.service import AuditService
@@ -42,7 +43,7 @@ class PendingUserSnapshot:
         return cls(
             ticket_id=int(row["ticket_id"]),
             pending_user_reason=PendingUserReason(str(row["pending_user_reason"])),
-            pending_user_deadline=row["pending_user_deadline"],
+            pending_user_deadline=as_utc(row["pending_user_deadline"]),
             resolution_summary=row["resolution_summary"],
             assignee_id=int(row["assignee_id"]) if row["assignee_id"] is not None else None,
         )
@@ -55,7 +56,7 @@ class ResolvedSnapshot:
 
     @classmethod
     def from_row(cls, row) -> "ResolvedSnapshot":
-        return cls(ticket_id=int(row["ticket_id"]), auto_close_at=row["auto_close_at"])
+        return cls(ticket_id=int(row["ticket_id"]), auto_close_at=as_utc(row["auto_close_at"]))
 
 
 @dataclass(frozen=True)

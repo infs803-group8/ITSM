@@ -147,10 +147,14 @@ def test_a_long_missed_scan_backfills_at_risk_then_overdue_and_a_rerun_adds_noth
     """T-JOB-05 / Q09: a cycle started 3 days ago (well past both the 80%
     and 100% marks) is discovered by the very first scan that ever looks
     at it -- both SLA_AT_RISK and SLA_OVERDUE must be written, in that
-    order, and a second run_once() immediately after must add nothing
-    (the DB-level uq_ticket_events_cycle_guard is the backstop; C035's
-    own re-validation, which no longer sees ON_TRACK/AT_RISK once the
-    ticket is OVERDUE, is what should actually prevent it from trying).
+    order, and a second run_once() immediately after must add nothing.
+    get_threshold_scan_candidates' own SQL (sla_status_code IN
+    ('ON_TRACK', 'AT_RISK')) is what actually prevents a second attempt --
+    once OVERDUE, the ticket is no longer offered as a candidate at all,
+    not merely re-validated out inside evaluate_threshold_scan; the
+    DB-level uq_ticket_events_cycle_guard unique key is only the
+    last-resort backstop if that candidate-fetch filter somehow didn't
+    catch it.
     """
     engine = _engine()
     _reset(engine)
@@ -174,9 +178,12 @@ def test_a_long_missed_scan_backfills_at_risk_then_overdue_and_a_rerun_adds_noth
         database.commit()
 
     assert second_summary.threshold.processed == 0
-    assert (
-        second_summary.threshold.skipped == 1
-    )  # already OVERDUE -> re-validated out, not re-written
+    # Once OVERDUE, get_threshold_scan_candidates' own SQL (sla_status_code
+    # IN ('ON_TRACK', 'AT_RISK')) never re-offers this ticket at all -- it
+    # is not merely re-validated out inside evaluate_threshold_scan, it is
+    # excluded at the candidate-fetch stage, so nothing here is skipped
+    # either; the counters simply never move again for this cycle.
+    assert second_summary.threshold.skipped == 0
     assert _fetch_event_types(engine, ticket_id) == ["SLA_AT_RISK", "SLA_OVERDUE"]  # unchanged
 
 
@@ -253,7 +260,7 @@ def test_two_concurrent_monitor_runs_against_the_same_overdue_ticket_write_the_e
             database.commit()
             results[name] = summary
 
-    threads = [threading.Thread(target=run_job, name=n) for n in ("first", "second")]
+    threads = [threading.Thread(target=run_job, args=(n,), name=n) for n in ("first", "second")]
     for thread in threads:
         thread.start()
     for thread in threads:
