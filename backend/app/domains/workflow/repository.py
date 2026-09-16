@@ -16,7 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.clock import as_mysql_utc
-from app.domains.workflow.state_machine import ClosureType, PendingUserReason, ResolutionType
+from app.domains.workflow.state_machine import ClosureType, ResolutionType
 
 
 class WorkflowRepository:

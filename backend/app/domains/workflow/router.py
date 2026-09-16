@@ -27,7 +27,12 @@ def error_responses(*status_codes: int) -> dict[int, dict[str, object]]:
 
 
 def _respond(
-    database: Session, *, ticket_id: int, actor: RequestContext, action: AvailableAction, event_id: int
+    database: Session,
+    *,
+    ticket_id: int,
+    actor: RequestContext,
+    action: AvailableAction,
+    event_id: int,
 ) -> TicketActionResponse:
     """Shared response assembly for every action in this router: build the
     fresh, post-write TicketDetail (same read C021's WorkflowReadModel
@@ -67,5 +72,9 @@ def start_ticket(
     outcome = StartTicketService(database).start(ticket_id=ticket_id, actor=actor)
     database.commit()
     return _respond(
-        database, ticket_id=ticket_id, actor=actor, action=AvailableAction.START, event_id=outcome.event_id
+        database,
+        ticket_id=ticket_id,
+        actor=actor,
+        action=AvailableAction.START,
+        event_id=outcome.event_id,
     )
