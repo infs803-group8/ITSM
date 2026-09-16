@@ -15,7 +15,6 @@ here should be repointed, since B, not C, owns that shape long-term.
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
 
 from pydantic import BaseModel, Field
 

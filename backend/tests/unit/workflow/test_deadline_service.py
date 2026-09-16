@@ -3,7 +3,6 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from app.core.errors import ApplicationError
-
 from app.domains.workflow.deadline_service import (
     DeadlineService,
     PendingUserSnapshot,

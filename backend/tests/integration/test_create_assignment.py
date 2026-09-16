@@ -91,19 +91,26 @@ def _seed_users_and_ticket(engine, *, ticket_id: int, with_candidate: bool) -> N
 
 def _fetch_ticket(engine, ticket_id: int):
     with engine.connect() as connection:
-        return connection.execute(
-            text(
-                "SELECT status_code, assignee_id, sla_cycle_no, sla_deadline "
-                "FROM tickets WHERE ticket_id = :ticket_id"
-            ),
-            {"ticket_id": ticket_id},
-        ).mappings().one_or_none()
+        return (
+            connection.execute(
+                text(
+                    "SELECT status_code, assignee_id, sla_cycle_no, sla_deadline "
+                    "FROM tickets WHERE ticket_id = :ticket_id"
+                ),
+                {"ticket_id": ticket_id},
+            )
+            .mappings()
+            .one_or_none()
+        )
 
 
 def _fetch_events(engine, ticket_id: int) -> list[str]:
     with engine.connect() as connection:
         rows = connection.execute(
-            text("SELECT event_type FROM ticket_events WHERE ticket_id = :ticket_id ORDER BY event_id"),
+            text(
+                "SELECT event_type FROM ticket_events "
+                "WHERE ticket_id = :ticket_id ORDER BY event_id"
+            ),
             {"ticket_id": ticket_id},
         ).all()
         return [row[0] for row in rows]

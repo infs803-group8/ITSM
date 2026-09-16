@@ -60,7 +60,9 @@ class SlaRepository:
         )
         return int(row["user_response_hours"])
 
-    def get_cycle_state(self, ticket_id: int, *, for_update: bool = False) -> Mapping[str, Any] | None:
+    def get_cycle_state(
+        self, ticket_id: int, *, for_update: bool = False
+    ) -> Mapping[str, Any] | None:
         lock = " FOR UPDATE" if for_update else ""
         return (
             self.database.execute(
