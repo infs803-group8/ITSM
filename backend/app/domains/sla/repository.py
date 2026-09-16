@@ -38,7 +38,9 @@ class SlaRepository:
             at_risk_percent=int(row["at_risk_percent"]),
         )
 
-    def get_cycle_state(self, ticket_id: int, *, for_update: bool = False) -> Mapping[str, Any] | None:
+    def get_cycle_state(
+        self, ticket_id: int, *, for_update: bool = False
+    ) -> Mapping[str, Any] | None:
         lock = " FOR UPDATE" if for_update else ""
         return (
             self.database.execute(
