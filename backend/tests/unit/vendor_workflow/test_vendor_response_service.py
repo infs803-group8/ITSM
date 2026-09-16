@@ -113,7 +113,9 @@ def active_binding(**overrides):
 
 def vendor_response_service(ticket_row, *, vendor_row=None, binding=None):
     service = VendorResponseService(None)
-    service.workflow_repository = WorkflowRepositoryFake(ticket_row=ticket_row, vendor_row=vendor_row)
+    service.workflow_repository = WorkflowRepositoryFake(
+        ticket_row=ticket_row, vendor_row=vendor_row
+    )
     service.repository = VendorWorkflowRepositoryFake(binding=binding)
     service.audit = AuditFake()
     return service
@@ -199,9 +201,7 @@ def test_a_ticket_with_no_active_vendor_request_is_rejected():
 
 def test_a_ticket_that_is_not_pending_vendor_is_rejected():
     row = pending_vendor_ticket_row(status_code="IN_PROGRESS")
-    service = vendor_response_service(
-        row, vendor_row=active_vendor_row(), binding=active_binding()
-    )
+    service = vendor_response_service(row, vendor_row=active_vendor_row(), binding=active_binding())
     with pytest.raises(ApplicationError) as excinfo:
         service.respond(ticket_id=1, actor=MATCHING_VENDOR, message="x", now=NOW)
     assert excinfo.value.code == "INVALID_STATUS_TRANSITION"
@@ -210,16 +210,16 @@ def test_a_ticket_that_is_not_pending_vendor_is_rejected():
 
 def test_a_closed_ticket_is_rejected():
     row = pending_vendor_ticket_row(status_code="CLOSED")
-    service = vendor_response_service(
-        row, vendor_row=active_vendor_row(), binding=active_binding()
-    )
+    service = vendor_response_service(row, vendor_row=active_vendor_row(), binding=active_binding())
     with pytest.raises(ApplicationError) as excinfo:
         service.respond(ticket_id=1, actor=MATCHING_VENDOR, message="x", now=NOW)
     assert excinfo.value.code == "TICKET_CLOSED"
 
 
 def test_missing_ticket_raises_404():
-    service = vendor_response_service(None, vendor_row=active_vendor_row(), binding=active_binding())
+    service = vendor_response_service(
+        None, vendor_row=active_vendor_row(), binding=active_binding()
+    )
     with pytest.raises(ApplicationError) as excinfo:
         service.respond(ticket_id=1, actor=MATCHING_VENDOR, message="x", now=NOW)
     assert excinfo.value.status_code == 404
