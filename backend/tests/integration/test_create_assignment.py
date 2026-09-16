@@ -44,7 +44,7 @@ pytestmark = pytest.mark.skipif(
 def _reset(engine) -> None:
     with engine.begin() as connection:
         connection.execute(text("SET FOREIGN_KEY_CHECKS=0"))
-        for table in ("ticket_events", "tickets", "user_skills", "users"):
+        for table in ("tickets", "user_skills", "users"):
             connection.execute(text(f"DELETE FROM {table}"))
         connection.execute(text("SET FOREIGN_KEY_CHECKS=1"))
         connection.execute(text("UPDATE assignment_control SET updated_at = updated_at"))
