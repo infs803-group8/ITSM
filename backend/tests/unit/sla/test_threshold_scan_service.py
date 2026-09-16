@@ -131,7 +131,9 @@ def test_a_ticket_that_is_pending_user_does_not_accrue_engineering_overdue():
 
 
 def test_a_resolved_ticket_is_never_rescanned():
-    service, repository, audit = sla_service(scan_row(status_code="RESOLVED", sla_status_code="MET"))
+    service, repository, audit = sla_service(
+        scan_row(status_code="RESOLVED", sla_status_code="MET")
+    )
     outcome = service.evaluate_threshold_scan(ticket_id=7001, now=DEADLINE + timedelta(days=1))
     assert outcome is None
     assert repository.status_calls == []

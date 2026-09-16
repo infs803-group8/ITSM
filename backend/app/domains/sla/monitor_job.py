@@ -42,7 +42,11 @@ from app.core.clock import utc_now
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.domains.sla.service import SlaCycleService
-from app.domains.workflow.deadline_service import DeadlineService, PendingUserSnapshot, ResolvedSnapshot
+from app.domains.workflow.deadline_service import (
+    DeadlineService,
+    PendingUserSnapshot,
+    ResolvedSnapshot,
+)
 from app.domains.workflow.repository import WorkflowRepository
 
 logger = logging.getLogger(__name__)
@@ -103,7 +107,9 @@ class SlaMonitorJob:
         self.sla = SlaCycleService(database)
         self.deadlines = DeadlineService(database)
 
-    def run_once(self, *, now: datetime | None = None, limit: int = _DEFAULT_PAGE_SIZE) -> RunSummary:
+    def run_once(
+        self, *, now: datetime | None = None, limit: int = _DEFAULT_PAGE_SIZE
+    ) -> RunSummary:
         """C036.01/.04: one full pass over all three candidate families,
         then return -- never loops on a timer itself.
 

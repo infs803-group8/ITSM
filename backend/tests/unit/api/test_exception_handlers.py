@@ -48,7 +48,11 @@ def test_a_false_acknowledge_on_close_maps_to_the_specific_code():
 
 
 def test_a_non_bool_acknowledge_on_close_also_maps_to_the_specific_code():
-    error = {"type": "bool_type", "loc": ("body", "acknowledge"), "msg": "Input should be a valid boolean"}
+    error = {
+        "type": "bool_type",
+        "loc": ("body", "acknowledge"),
+        "msg": "Input should be a valid boolean",
+    }
     status_code, code, message = _classify_validation_error([error], path=CLOSE_PATH)
     assert code == "CLOSE_ACKNOWLEDGEMENT_REQUIRED"
 
@@ -59,7 +63,11 @@ def test_other_close_validation_errors_are_not_reclassified():
     CLOSE_ACKNOWLEDGEMENT_REQUIRED -- only errors actually on
     ``acknowledge`` trigger the specific code (C034.02's own wording:
     "其他结构错误用既定 Validation Error，不把所有 422 都映射成关闭确认错误")."""
-    error = {"type": "string_too_long", "loc": ("body", "reason"), "msg": "String should have at most 1000 characters"}
+    error = {
+        "type": "string_too_long",
+        "loc": ("body", "reason"),
+        "msg": "String should have at most 1000 characters",
+    }
     status_code, code, message = _classify_validation_error([error], path=CLOSE_PATH)
     assert code == "VALIDATION_ERROR"
     assert status_code == 422

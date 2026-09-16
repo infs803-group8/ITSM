@@ -17,7 +17,7 @@ Run only against a disposable schema, same convention as
 
     RUN_MYSQL_INTEGRATION=1 pytest tests/integration/test_create_assignment.py
 
-Uses its own ``service_desk_member_c_test`` schema name rather than
+Uses its own ``service_desk_member_a_test`` schema name rather than
 member A's, so the two integration tests never share -- or corrupt -- each
 other's fixture data; this schema-per-member convention is not yet agreed
 with the team and should be reconciled once everyone has an integration
@@ -44,7 +44,7 @@ pytestmark = pytest.mark.skipif(
 def _reset(engine) -> None:
     with engine.begin() as connection:
         connection.execute(text("SET FOREIGN_KEY_CHECKS=0"))
-        for table in ("ticket_events", "tickets", "user_skills", "users"):
+        for table in ("tickets", "user_skills", "users"):
             connection.execute(text(f"DELETE FROM {table}"))
         connection.execute(text("SET FOREIGN_KEY_CHECKS=1"))
         connection.execute(text("UPDATE assignment_control SET updated_at = updated_at"))
@@ -91,19 +91,26 @@ def _seed_users_and_ticket(engine, *, ticket_id: int, with_candidate: bool) -> N
 
 def _fetch_ticket(engine, ticket_id: int):
     with engine.connect() as connection:
-        return connection.execute(
-            text(
-                "SELECT status_code, assignee_id, sla_cycle_no, sla_deadline "
-                "FROM tickets WHERE ticket_id = :ticket_id"
-            ),
-            {"ticket_id": ticket_id},
-        ).mappings().one_or_none()
+        return (
+            connection.execute(
+                text(
+                    "SELECT status_code, assignee_id, sla_cycle_no, sla_deadline "
+                    "FROM tickets WHERE ticket_id = :ticket_id"
+                ),
+                {"ticket_id": ticket_id},
+            )
+            .mappings()
+            .one_or_none()
+        )
 
 
 def _fetch_events(engine, ticket_id: int) -> list[str]:
     with engine.connect() as connection:
         rows = connection.execute(
-            text("SELECT event_type FROM ticket_events WHERE ticket_id = :ticket_id ORDER BY event_id"),
+            text(
+                "SELECT event_type FROM ticket_events "
+                "WHERE ticket_id = :ticket_id ORDER BY event_id"
+            ),
             {"ticket_id": ticket_id},
         ).all()
         return [row[0] for row in rows]
@@ -111,7 +118,7 @@ def _fetch_events(engine, ticket_id: int) -> list[str]:
 
 def _engine():
     settings = get_settings()
-    assert settings.database_url.endswith("/service_desk_member_c_test")
+    assert settings.database_url.endswith("/service_desk_member_a_test")
     return create_engine(settings.database_url)
 
 

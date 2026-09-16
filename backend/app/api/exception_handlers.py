@@ -55,7 +55,11 @@ def _classify_validation_error(errors: list[dict], *, path: str) -> tuple[int, s
         # Path-scoped (unlike those two) purely as an extra safety
         # margin, since "acknowledge" is currently unique to
         # CloseRequest but a future schema could reuse the field name.
-        return 422, "CLOSE_ACKNOWLEDGEMENT_REQUIRED", "Acknowledgement is required to close this ticket."
+        return (
+            422,
+            "CLOSE_ACKNOWLEDGEMENT_REQUIRED",
+            "Acknowledgement is required to close this ticket.",
+        )
     return 422, "VALIDATION_ERROR", "The request did not pass validation."
 
 

@@ -53,7 +53,9 @@ class SlaRepositoryFake:
         self.calls: list[dict] = []
 
     def get_threshold_scan_candidates(self, *, now, at_risk_cutoff, limit, after_ticket_id):
-        self.calls.append({"now": now, "at_risk_cutoff": at_risk_cutoff, "after_ticket_id": after_ticket_id})
+        self.calls.append(
+            {"now": now, "at_risk_cutoff": at_risk_cutoff, "after_ticket_id": after_ticket_id}
+        )
         if not self._pages:
             return []
         return self._pages.pop(0)
@@ -233,8 +235,6 @@ def test_a_single_ticket_failure_is_isolated_counted_and_does_not_abort_the_batc
     same page from being attempted, and must show up as failed rather
     than silently vanishing.
     """
-    sla = SlaServiceFake(pages=[[201, 202]], outcomes={202: "processed-outcome"})
-
     class RaisingSlaService(SlaServiceFake):
         def evaluate_threshold_scan(self, *, ticket_id, now):
             if ticket_id == 201:
