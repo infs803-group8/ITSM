@@ -1,0 +1,696 @@
+{
+  "operations": {
+    "api01Health": {
+      "method": "get",
+      "path": "/health",
+      "status": 200,
+      "body": {
+        "data": {
+          "status": "ok",
+          "service": "it-service-desk-backend",
+          "version": "abc1234",
+          "timestamp": "2026-09-01T03:20:15Z",
+          "checks": {
+            "database": "ok"
+          }
+        }
+      },
+      "requestSchema": null,
+      "parameters": [
+        {
+          "name": "X-Request-ID",
+          "in": "header",
+          "required": false,
+          "description": "Optional UUID correlation ID; server generates one if absent.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ]
+    },
+    "api08Register": {
+      "method": "post",
+      "path": "/auth/register",
+      "status": 201,
+      "body": {
+        "data": {
+          "user_id": 1001,
+          "email": "user@example.com",
+          "display_name": "Example Requester",
+          "role": "USER",
+          "is_available": null,
+          "vendor_org": null,
+          "created_at": "2026-09-01T01:00:00Z"
+        }
+      },
+      "requestSchema": {
+        "$ref": "#/components/schemas/RegisterRequest"
+      },
+      "parameters": [
+        {
+          "name": "X-Request-ID",
+          "in": "header",
+          "required": false,
+          "description": "Optional UUID correlation ID; server generates one if absent.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ]
+    },
+    "api09Login": {
+      "method": "post",
+      "path": "/auth/login",
+      "status": 200,
+      "body": {
+        "data": {
+          "access_token": "eyJhbGciOi...example",
+          "token_type": "bearer",
+          "expires_in": 3600,
+          "user": {
+            "user_id": 1001,
+            "email": "user@example.com",
+            "display_name": "Example Requester",
+            "role": "USER",
+            "is_available": null,
+            "vendor_org": null,
+            "created_at": "2026-09-01T01:00:00Z"
+          }
+        }
+      },
+      "requestSchema": {
+        "$ref": "#/components/schemas/LoginRequest"
+      },
+      "parameters": [
+        {
+          "name": "X-Request-ID",
+          "in": "header",
+          "required": false,
+          "description": "Optional UUID correlation ID; server generates one if absent.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ]
+    },
+    "api10GetMyProfile": {
+      "method": "get",
+      "path": "/users/me",
+      "status": 200,
+      "body": {
+        "data": {
+          "user_id": 1001,
+          "email": "user@example.com",
+          "display_name": "Example Requester",
+          "role": "USER",
+          "is_available": null,
+          "vendor_org": null,
+          "created_at": "2026-09-01T01:00:00Z"
+        }
+      },
+      "requestSchema": null,
+      "parameters": [
+        {
+          "name": "X-Request-ID",
+          "in": "header",
+          "required": false,
+          "description": "Optional UUID correlation ID; server generates one if absent.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ]
+    },
+    "api11UpdateMyProfile": {
+      "method": "patch",
+      "path": "/users/me",
+      "status": 200,
+      "body": {
+        "data": {
+          "user_id": 2001,
+          "email": "tier1@example.com",
+          "display_name": "Updated Tier 1 Engineer",
+          "role": "ENGINEER_TIER1",
+          "is_available": false,
+          "vendor_org": null,
+          "created_at": "2026-09-01T01:00:00Z"
+        }
+      },
+      "requestSchema": {
+        "$ref": "#/components/schemas/UpdateProfileRequest"
+      },
+      "parameters": [
+        {
+          "name": "X-Request-ID",
+          "in": "header",
+          "required": false,
+          "description": "Optional UUID correlation ID; server generates one if absent.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ]
+    },
+    "api12ReferenceData": {
+      "method": "get",
+      "path": "/reference-data",
+      "status": 200,
+      "body": {
+        "data": {
+          "categories": [
+            "NETWORK",
+            "HARDWARE",
+            "SOFTWARE",
+            "ACCOUNT",
+            "OTHER"
+          ],
+          "priorities": [
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "URGENT"
+          ],
+          "ticket_statuses": [
+            "UNASSIGNED",
+            "ASSIGNED",
+            "IN_PROGRESS",
+            "PENDING_USER",
+            "PENDING_VENDOR",
+            "RESOLVED",
+            "REOPENED",
+            "CLOSED"
+          ],
+          "comment_visibilities": [
+            "USER_VISIBLE",
+            "INTERNAL_ONLY"
+          ],
+          "attachment_visibilities": [
+            "USER_VISIBLE",
+            "INTERNAL_ONLY",
+            "VENDOR_SHARED"
+          ],
+          "attachment": {
+            "max_size_bytes": 10485760,
+            "upload_url_ttl_seconds": 900,
+            "download_url_ttl_seconds": 300,
+            "allowed_types": [
+              {
+                "extension": "png",
+                "content_type": "image/png"
+              },
+              {
+                "extension": "log",
+                "content_type": "text/plain"
+              }
+            ]
+          },
+          "timers": {
+            "engineering_sla_hours": 48,
+            "at_risk_percent": 80,
+            "user_response_hours": 120,
+            "resolved_window_hours": 168
+          }
+        }
+      },
+      "requestSchema": null,
+      "parameters": [
+        {
+          "name": "X-Request-ID",
+          "in": "header",
+          "required": false,
+          "description": "Optional UUID correlation ID; server generates one if absent.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ]
+    },
+    "api15CreateTicket": {
+      "method": "post",
+      "path": "/tickets",
+      "status": 201,
+      "body": {
+        "data": {
+          "ticket_id": 5001,
+          "title": "Cannot connect to office Wi-Fi",
+          "description": "The laptop cannot connect after restarting.",
+          "category": "NETWORK",
+          "priority": "HIGH",
+          "status": "ASSIGNED",
+          "display_status": "Assigned",
+          "requester": {
+            "user_id": 1001,
+            "display_name": "Example Requester"
+          },
+          "assignee": {
+            "user_id": 2001,
+            "display_name": "Tier 1 Engineer",
+            "tier": "TIER1",
+            "skills": [
+              "NETWORK",
+              "SOFTWARE"
+            ],
+            "is_available": true,
+            "active_load": 2
+          },
+          "sla": {
+            "cycle_no": 1,
+            "status": "ON_TRACK",
+            "started_at": "2026-09-01T01:00:00Z",
+            "deadline": "2026-09-03T01:00:00Z"
+          },
+          "pending_user": null,
+          "resolution": null,
+          "closure": null,
+          "vendor_request": null,
+          "available_actions": [
+            "COMMENT",
+            "UPLOAD_ATTACHMENT"
+          ],
+          "created_at": "2026-09-01T01:00:00Z",
+          "updated_at": "2026-09-01T03:20:15Z"
+        }
+      },
+      "requestSchema": {
+        "$ref": "#/components/schemas/TicketCreateRequest"
+      },
+      "parameters": [
+        {
+          "name": "X-Request-ID",
+          "in": "header",
+          "required": false,
+          "description": "Optional UUID correlation ID; server generates one if absent.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ]
+    },
+    "api16ListTickets": {
+      "method": "get",
+      "path": "/tickets",
+      "status": 200,
+      "body": {
+        "data": [
+          {
+            "ticket_id": 5001,
+            "title": "Cannot connect to office Wi-Fi",
+            "category": "NETWORK",
+            "priority": "HIGH",
+            "status": "IN_PROGRESS",
+            "display_status": "In Progress",
+            "assignee": {
+              "user_id": 2001,
+              "display_name": "Tier 1 Engineer",
+              "tier": "TIER1",
+              "skills": [
+                "NETWORK",
+                "SOFTWARE"
+              ],
+              "is_available": true,
+              "active_load": 2
+            },
+            "sla": {
+              "cycle_no": 1,
+              "status": "ON_TRACK",
+              "started_at": "2026-09-01T01:00:00Z",
+              "deadline": "2026-09-03T01:00:00Z"
+            },
+            "available_actions": [
+              "COMMENT",
+              "UPLOAD_ATTACHMENT",
+              "REQUEST_USER_INFO",
+              "RESOLVE"
+            ],
+            "created_at": "2026-09-01T01:00:00Z",
+            "updated_at": "2026-09-01T03:20:15Z"
+          }
+        ],
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "total": 1,
+          "total_pages": 1
+        }
+      },
+      "requestSchema": null,
+      "parameters": [
+        {
+          "name": "X-Request-ID",
+          "in": "header",
+          "required": false,
+          "description": "Optional UUID correlation ID; server generates one if absent.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "page",
+          "in": "query",
+          "required": false,
+          "description": "Page number.",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1
+          }
+        },
+        {
+          "name": "page_size",
+          "in": "query",
+          "required": false,
+          "description": "Page size.",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          }
+        },
+        {
+          "name": "status",
+          "in": "query",
+          "required": false,
+          "description": "Status.",
+          "schema": {
+            "$ref": "#/components/schemas/TicketStatus"
+          }
+        },
+        {
+          "name": "category",
+          "in": "query",
+          "required": false,
+          "description": "Category.",
+          "schema": {
+            "$ref": "#/components/schemas/Category"
+          }
+        },
+        {
+          "name": "priority",
+          "in": "query",
+          "required": false,
+          "description": "Priority.",
+          "schema": {
+            "$ref": "#/components/schemas/Priority"
+          }
+        },
+        {
+          "name": "sla_status",
+          "in": "query",
+          "required": false,
+          "description": "SLA.",
+          "schema": {
+            "$ref": "#/components/schemas/SlaStatus"
+          }
+        },
+        {
+          "name": "assignee_id",
+          "in": "query",
+          "required": false,
+          "description": "Assignee; role restricted.",
+          "schema": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "search",
+          "in": "query",
+          "required": false,
+          "description": "Search.",
+          "schema": {
+            "type": "string",
+            "description": "Title search.",
+            "maxLength": 200
+          }
+        },
+        {
+          "name": "sort_by",
+          "in": "query",
+          "required": false,
+          "description": "Sort field.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "created_at",
+              "updated_at",
+              "sla_deadline",
+              "priority"
+            ],
+            "description": "Sort field."
+          }
+        },
+        {
+          "name": "sort_order",
+          "in": "query",
+          "required": false,
+          "description": "Direction.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "description": "Direction."
+          }
+        }
+      ]
+    },
+    "api17GetTicket": {
+      "method": "get",
+      "path": "/tickets/{id}",
+      "status": 200,
+      "body": {
+        "data": {
+          "ticket_id": 5001,
+          "title": "Cannot connect to office Wi-Fi",
+          "description": "The laptop cannot connect after restarting.",
+          "category": "NETWORK",
+          "priority": "HIGH",
+          "status": "IN_PROGRESS",
+          "display_status": "In Progress",
+          "requester": {
+            "user_id": 1001,
+            "display_name": "Example Requester"
+          },
+          "assignee": {
+            "user_id": 2001,
+            "display_name": "Tier 1 Engineer",
+            "tier": "TIER1",
+            "skills": [
+              "NETWORK",
+              "SOFTWARE"
+            ],
+            "is_available": true,
+            "active_load": 2
+          },
+          "sla": {
+            "cycle_no": 1,
+            "status": "ON_TRACK",
+            "started_at": "2026-09-01T01:00:00Z",
+            "deadline": "2026-09-03T01:00:00Z"
+          },
+          "pending_user": null,
+          "resolution": null,
+          "closure": null,
+          "vendor_request": null,
+          "available_actions": [
+            "COMMENT",
+            "UPLOAD_ATTACHMENT",
+            "REQUEST_USER_INFO",
+            "RESOLVE"
+          ],
+          "created_at": "2026-09-01T01:00:00Z",
+          "updated_at": "2026-09-01T03:20:15Z"
+        }
+      },
+      "requestSchema": null,
+      "parameters": [
+        {
+          "name": "X-Request-ID",
+          "in": "header",
+          "required": false,
+          "description": "Optional UUID correlation ID; server generates one if absent.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Ticket ID.",
+          "schema": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        }
+      ]
+    }
+  },
+  "components": {
+    "schemas": {
+      "RegisterRequest": {
+        "type": "object",
+        "description": "",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Unique email.",
+            "format": "email",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string",
+            "description": "Password; write-only.",
+            "format": "password",
+            "minLength": 8,
+            "maxLength": 128,
+            "writeOnly": true
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Display name.",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "display_name"
+        ],
+        "additionalProperties": false
+      },
+      "LoginRequest": {
+        "type": "object",
+        "description": "",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Registered email.",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "description": "Password.",
+            "format": "password",
+            "minLength": 1,
+            "maxLength": 128,
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateProfileRequest": {
+        "type": "object",
+        "description": "At least one field; extra fields forbidden.",
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "description": "New display name.",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "is_available": {
+            "type": "boolean",
+            "description": "Engineer availability; forbidden for non-engineers."
+          }
+        },
+        "additionalProperties": false
+      },
+      "TicketCreateRequest": {
+        "type": "object",
+        "description": "",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Title.",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "description": "Description.",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/Priority"
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "category",
+          "priority"
+        ],
+        "additionalProperties": false
+      },
+      "Category": {
+        "type": "string",
+        "description": "Ticket category.",
+        "enum": [
+          "NETWORK",
+          "HARDWARE",
+          "SOFTWARE",
+          "ACCOUNT",
+          "OTHER"
+        ]
+      },
+      "Priority": {
+        "type": "string",
+        "description": "Ticket priority.",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH",
+          "URGENT"
+        ]
+      },
+      "TicketStatus": {
+        "type": "string",
+        "description": "Role-visible lifecycle status; USER receives IN_PROGRESS instead of internal PENDING_VENDOR.",
+        "enum": [
+          "UNASSIGNED",
+          "ASSIGNED",
+          "IN_PROGRESS",
+          "PENDING_USER",
+          "PENDING_VENDOR",
+          "RESOLVED",
+          "REOPENED",
+          "CLOSED"
+        ]
+      },
+      "SlaStatus": {
+        "type": "string",
+        "description": "Engineering SLA status.",
+        "enum": [
+          "ON_TRACK",
+          "AT_RISK",
+          "OVERDUE",
+          "PAUSED",
+          "MET"
+        ]
+      }
+    }
+  }
+}
