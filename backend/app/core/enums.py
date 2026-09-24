@@ -50,6 +50,47 @@ class TicketStatus(StrEnum):
     CLOSED = "CLOSED"
 
 
+class CommentVisibility(StrEnum):
+    USER_VISIBLE = "USER_VISIBLE"
+    INTERNAL_ONLY = "INTERNAL_ONLY"
+
+
+class SlaStatus(StrEnum):
+    ON_TRACK = "ON_TRACK"
+    AT_RISK = "AT_RISK"
+    OVERDUE = "OVERDUE"
+    PAUSED = "PAUSED"
+    MET = "MET"
+
+
+class PendingUserReason(StrEnum):
+    INFORMATION_REQUIRED = "INFORMATION_REQUIRED"
+    RESOLUTION_CONFIRMATION = "RESOLUTION_CONFIRMATION"
+
+
+class VendorRequestStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    RESPONDED = "RESPONDED"
+    CANCELLED = "CANCELLED"
+
+
+class AvailableAction(StrEnum):
+    EDIT = "EDIT"
+    COMMENT = "COMMENT"
+    UPLOAD_ATTACHMENT = "UPLOAD_ATTACHMENT"
+    ASSIGN = "ASSIGN"
+    START = "START"
+    REQUEST_USER_INFO = "REQUEST_USER_INFO"
+    RESUME = "RESUME"
+    ESCALATE = "ESCALATE"
+    REQUEST_VENDOR = "REQUEST_VENDOR"
+    VENDOR_RESPONSE = "VENDOR_RESPONSE"
+    RESOLVE = "RESOLVE"
+    CONFIRM_RESOLUTION = "CONFIRM_RESOLUTION"
+    REOPEN = "REOPEN"
+    CLOSE = "CLOSE"
+
+
 class EventScope(StrEnum):
     """Audit-event scope (docs/api/openapi.yaml: EventScope)."""
 

@@ -21,20 +21,15 @@ the comments/attachments domains respectively). Whoever assembles the final
 merging is not this module's job, and doing it here would silently hide a
 missing contribution from one of those domains behind an empty list.
 
-Two currently-unconfirmed team decisions (see docs/project-management/
-decision-log.md Q02/Q06, drafted by C, NOT yet signed off by A/B/D/Andy) are
-baked in here as best-effort defaults so C021 is not blocked on a team
-meeting; both are called out at the call site so they are easy to revisit:
+The role-aware field rules are recorded in docs/project-management/
+decision-log.md Q02/Q06 and called out here at the serialization boundary:
 
 * Q02 (Vendor field leakage): Vendor gets ``description``/``requester``/
   ``assignee``/``sla``/``pending_user``/``resolution``/``closure`` = null.
-  Whether Vendor may see the raw ``status`` value at all is flagged in the
-  decision log as an unresolved sub-item; since ``TicketDetail.status`` is a
-  REQUIRED, non-nullable field in the current OpenAPI contract (unlike
-  ``display_status``, which is a free-form string), this module has no
-  contractual room to hide it and passes the raw value through for every
-  role. ``display_status`` is where the vendor-safe representation lives
-  instead (see ``derive_display_status``).
+  B/C/D confirmed that both ``status`` and ``display_status`` use the same
+  Vendor-safe three-state representation: ``CLOSED``, ``PENDING_VENDOR``
+  while this organisation has an ACTIVE request, otherwise ``IN_PROGRESS``.
+  Raw internal lifecycle states are never returned to a Vendor.
 * Q06 (AssigneeSummary over-exposure to USER): still unresolved between
   "change the OpenAPI contract" (plan A) and "fabricate placeholder values"
   (plan B, explicitly *not recommended* in the decision log). Until the team
@@ -337,11 +332,12 @@ def build_ticket_workflow_view(
     has_active_vendor_request = bool(vendor_row is not None and vendor_row["status"] == "ACTIVE")
     state = build_ticket_state({**raw, "has_active_vendor_request": has_active_vendor_request})
     vendor_request_status = vendor_row["status"] if vendor_row is not None else None
+    visible_status = derive_display_status(
+        status, actor=actor, vendor_request_status=vendor_request_status
+    )
     return {
-        "status": status.value,
-        "display_status": derive_display_status(
-            status, actor=actor, vendor_request_status=vendor_request_status
-        ),
+        "status": visible_status,
+        "display_status": visible_status,
         "requester": serialize_requester(raw, actor=actor),
         "assignee": serialize_assignee(raw, actor=actor),
         "sla": serialize_sla(raw, actor=actor),

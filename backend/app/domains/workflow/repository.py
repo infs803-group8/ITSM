@@ -393,7 +393,9 @@ class WorkflowRepository:
             {"ticket_id": ticket_id},
         )
 
-    def get_latest_vendor_request(self, ticket_id: int) -> Mapping[str, Any] | None:
+    def get_latest_vendor_request(
+        self, ticket_id: int, *, vendor_org_id: int | None = None
+    ) -> Mapping[str, Any] | None:
         """The most recently created vendor request for this ticket, whatever
         its status -- Q03 (decision log, draft): ``TicketDetail.vendor_request``
         exposes only the single "current" request, not the full history; a
@@ -409,11 +411,12 @@ class WorkflowRepository:
                     FROM vendor_requests vr
                     JOIN vendor_organisations org ON org.vendor_org_id = vr.vendor_org_id
                     WHERE vr.ticket_id = :ticket_id
+                      AND (:vendor_org_id IS NULL OR vr.vendor_org_id = :vendor_org_id)
                     ORDER BY vr.created_at DESC, vr.vendor_request_id DESC
                     LIMIT 1
                     """
                 ),
-                {"ticket_id": ticket_id},
+                {"ticket_id": ticket_id, "vendor_org_id": vendor_org_id},
             )
             .mappings()
             .one_or_none()

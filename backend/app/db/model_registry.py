@@ -7,4 +7,16 @@ another owner's import without checking with them first, per
 rule).
 """
 
-from app.domains.audit.model import TicketEvent  # noqa: F401  (Member C)
+from app.domains.audit.model import TicketEvent
+from app.domains.comments.model import Comment
+from app.domains.tickets.model import Ticket
+from app.domains.users.model import User, UserSkill, VendorOrganisation
+
+__all__ = [
+    "Comment",
+    "Ticket",
+    "TicketEvent",
+    "User",
+    "UserSkill",
+    "VendorOrganisation",
+]
