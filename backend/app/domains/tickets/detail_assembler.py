@@ -96,6 +96,7 @@ def assemble_ticket_detail(
     workflow = WorkflowReadModel(database).get_role_view(
         ticket_id=ticket_id, actor=_actor_context(actor)
     )
+    role = UserRole(actor.role)
     summary = TicketSummary(
         ticket_id=ticket_id,
         title=str(row["title"]),
@@ -115,12 +116,21 @@ def assemble_ticket_detail(
         **summary.model_dump(),
         description=(
             None
-            if UserRole(actor.role) is UserRole.EXTERNAL_VENDOR
+            if role is UserRole.EXTERNAL_VENDOR
             else str(row["description"])
         ),
         requester=workflow["requester"],
         pending_user=workflow["pending_user"],
         resolution=workflow["resolution"],
         closure=workflow["closure"],
-        vendor_request=workflow["vendor_request"],
+        vendor_request=(
+            workflow["vendor_request"]
+            if role
+            in {
+                UserRole.ENGINEER_TIER2,
+                UserRole.SERVICE_DESK_MANAGER,
+                UserRole.EXTERNAL_VENDOR,
+            }
+            else None
+        ),
     )

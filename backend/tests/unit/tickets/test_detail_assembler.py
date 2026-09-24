@@ -23,8 +23,8 @@ def _row(**overrides):
     return row
 
 
-def _workflow():
-    return {
+def _workflow(**overrides):
+    view = {
         "status": "PENDING_USER",
         "display_status": "PENDING_USER",
         "requester": {"user_id": 10, "display_name": "Requester"},
@@ -44,6 +44,8 @@ def _workflow():
         "vendor_request": None,
         "available_actions": ["RESUME"],
     }
+    view.update(overrides)
+    return view
 
 
 def test_assembler_returns_model_with_utc_times_and_merged_actions(monkeypatch):
@@ -107,3 +109,52 @@ def test_vendor_only_gets_upload_for_own_active_request():
         "UPLOAD_ATTACHMENT",
     ]
     assert responded == []
+
+
+def test_tier1_cannot_read_vendor_request_payload(monkeypatch):
+    vendor_request = {
+        "vendor_request_id": 88,
+        "vendor_org": {
+            "vendor_org_id": 7,
+            "name": "Hidden Vendor",
+            "is_active": True,
+        },
+        "status": "RESPONDED",
+        "vendor_message": "Sensitive vendor response",
+        "created_at": "2026-09-24T01:02:03+00:00",
+        "responded_at": "2026-09-24T02:03:04+00:00",
+    }
+
+    class FakeTicketRepository:
+        def __init__(self, _database):
+            pass
+
+        def detail(self, _actor, _ticket_id):
+            return _row(status_code="IN_PROGRESS")
+
+    class FakeWorkflowReadModel:
+        def __init__(self, _database):
+            pass
+
+        def get_role_view(self, *, ticket_id, actor):
+            assert ticket_id == 41
+            assert actor.role is UserRole.ENGINEER_TIER1
+            return _workflow(
+                status="IN_PROGRESS",
+                display_status="IN_PROGRESS",
+                pending_user=None,
+                vendor_request=vendor_request,
+                available_actions=["START"],
+            )
+
+    monkeypatch.setattr(detail_assembler, "TicketRepository", FakeTicketRepository)
+    monkeypatch.setattr(detail_assembler, "WorkflowReadModel", FakeWorkflowReadModel)
+
+    detail = detail_assembler.assemble_ticket_detail(
+        object(),
+        actor=RequestContext(user_id=20, role=UserRole.ENGINEER_TIER1),
+        ticket_id=41,
+    )
+
+    assert detail is not None
+    assert detail.vendor_request is None
