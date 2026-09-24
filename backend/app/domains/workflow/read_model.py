@@ -16,6 +16,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.clock import as_utc
+from app.core.enums import UserRole
 from app.domains.workflow.repository import WorkflowRepository
 from app.domains.workflow.serializer import ActorContext, build_ticket_workflow_view
 
@@ -86,7 +87,12 @@ class WorkflowReadModel:
             "closed_at",
         ):
             raw[key] = _isoformat(raw.get(key))
-        vendor_row = self.repository.get_latest_vendor_request(ticket_id)
+        vendor_row = self.repository.get_latest_vendor_request(
+            ticket_id,
+            vendor_org_id=(
+                actor.vendor_org_id if actor.role is UserRole.EXTERNAL_VENDOR else None
+            ),
+        )
         if vendor_row is not None:
             vendor_row = dict(vendor_row)
             vendor_row["created_at"] = _isoformat(vendor_row.get("created_at"))

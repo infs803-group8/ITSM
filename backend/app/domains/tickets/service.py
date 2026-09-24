@@ -257,6 +257,24 @@ class TicketService:
                 TicketStatus.IN_PROGRESS.value,
                 TicketStatus.PENDING_VENDOR.value,
             ]
+        if actor.role == UserRole.EXTERNAL_VENDOR:
+            if sla_status is not None:
+                raise ApplicationError(
+                    "DATA_SCOPE_DENIED",
+                    "The SLA filter is not available to external vendors.",
+                    403,
+                )
+            visible_vendor_statuses = {
+                TicketStatus.IN_PROGRESS,
+                TicketStatus.PENDING_VENDOR,
+                TicketStatus.CLOSED,
+            }
+            if status is not None and status not in visible_vendor_statuses:
+                raise ApplicationError(
+                    "DATA_SCOPE_DENIED",
+                    "The requested status is not visible to external vendors.",
+                    403,
+                )
         rows, total = self.repository.list(
             actor,
             page=page,

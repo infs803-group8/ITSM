@@ -144,7 +144,17 @@ class TicketRepository:
     ) -> tuple[Sequence[Mapping[str, Any]], int]:
         scope, params = self.scope_sql(actor)
         filters = [scope]
-        if statuses:
+        if statuses and actor.role == UserRole.EXTERNAL_VENDOR:
+            visible_status = statuses[0]
+            if visible_status == "CLOSED":
+                filters.append("t.status_code = 'CLOSED'")
+            elif visible_status == "PENDING_VENDOR":
+                filters.append("t.status_code <> 'CLOSED' AND vr.status = 'ACTIVE'")
+            elif visible_status == "IN_PROGRESS":
+                filters.append(
+                    "t.status_code <> 'CLOSED' AND (vr.status IS NULL OR vr.status <> 'ACTIVE')"
+                )
+        elif statuses:
             status_parameters: list[str] = []
             for index, value in enumerate(statuses):
                 key = f"status_{index}"
@@ -167,7 +177,10 @@ class TicketRepository:
         where = " AND ".join(filters)
         total = int(
             self.database.execute(
-                text(f"SELECT COUNT(*) FROM tickets t WHERE {where}"), params
+                text(
+                    f"SELECT COUNT(*) FROM tickets t {self._joins(actor)} WHERE {where}"
+                ),
+                params,
             ).scalar_one()
         )
         sort_columns = {

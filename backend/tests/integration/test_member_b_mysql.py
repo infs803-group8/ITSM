@@ -22,7 +22,7 @@ def _seed(engine) -> None:
         connection.execute(
             text(
                 "INSERT INTO vendor_organisations (vendor_org_id,name) "
-                "VALUES (2101,'Member B Vendor')"
+                "VALUES (2101,'Member B Vendor'),(2102,'Second Vendor')"
             )
         )
         connection.execute(
@@ -38,7 +38,9 @@ def _seed(engine) -> None:
                   (1104,'member-b-manager@test.local','unused','Member B Manager',
                    'SERVICE_DESK_MANAGER',NULL,NULL),
                   (1105,'member-b-vendor@test.local','unused','Member B Vendor User',
-                   'EXTERNAL_VENDOR',NULL,2101)
+                   'EXTERNAL_VENDOR',NULL,2101),
+                  (1106,'member-b-vendor-2@test.local','unused','Second Vendor User',
+                   'EXTERNAL_VENDOR',NULL,2102)
                 """
             )
         )
@@ -186,6 +188,13 @@ def test_member_b_api_12_through_20_with_real_mysql():
                 ),
                 {"ticket_id": ticket_id},
             )
+            connection.execute(
+                text(
+                    "UPDATE tickets SET status_code='PENDING_VENDOR', assignee_id=1103 "
+                    "WHERE ticket_id=:ticket_id"
+                ),
+                {"ticket_id": ticket_id},
+            )
 
         vendor_detail = _expect(
             client.get(f"/api/v1/tickets/{ticket_id}", headers=_auth(1105)),
@@ -194,6 +203,50 @@ def test_member_b_api_12_through_20_with_real_mysql():
         )
         assert vendor_detail["data"]["status"] == "IN_PROGRESS"
         assert vendor_detail["data"]["display_status"] == "IN_PROGRESS"
+
+        vendor_in_progress = _expect(
+            client.get("/api/v1/tickets?status=IN_PROGRESS", headers=_auth(1105)),
+            200,
+            "API-16 vendor visible status filter",
+        )
+        assert ticket_id in [item["ticket_id"] for item in vendor_in_progress["data"]]
+        assert (
+            client.get("/api/v1/tickets?status=RESOLVED", headers=_auth(1105)).status_code
+            == 403
+        )
+        assert (
+            client.get("/api/v1/tickets?sla_status=OVERDUE", headers=_auth(1105)).status_code
+            == 403
+        )
+
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO vendor_requests "
+                    "(ticket_id,vendor_org_id,requested_by_id,vendor_message,status,created_at) "
+                    "VALUES (:ticket_id,2102,1103,'Second vendor investigate','ACTIVE',"
+                    "DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 SECOND))"
+                ),
+                {"ticket_id": ticket_id},
+            )
+
+        historical_vendor_detail = _expect(
+            client.get(f"/api/v1/tickets/{ticket_id}", headers=_auth(1105)),
+            200,
+            "API-17 historical vendor isolation",
+        )
+        assert historical_vendor_detail["data"]["status"] == "IN_PROGRESS"
+        assert historical_vendor_detail["data"]["vendor_request"]["status"] == "RESPONDED"
+        assert "VENDOR_RESPONSE" not in historical_vendor_detail["data"]["available_actions"]
+
+        active_vendor_detail = _expect(
+            client.get(f"/api/v1/tickets/{ticket_id}", headers=_auth(1106)),
+            200,
+            "API-17 active vendor status",
+        )
+        assert active_vendor_detail["data"]["status"] == "PENDING_VENDOR"
+        assert active_vendor_detail["data"]["vendor_request"]["status"] == "ACTIVE"
+        assert "VENDOR_RESPONSE" in active_vendor_detail["data"]["available_actions"]
 
         with engine.begin() as connection:
             connection.execute(
