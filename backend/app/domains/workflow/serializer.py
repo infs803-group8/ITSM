@@ -329,7 +329,18 @@ def build_ticket_workflow_view(
     EDIT/COMMENT/UPLOAD_ATTACHMENT members of ``available_actions``.
     """
     status = TicketStatus(raw["status_code"])
-    has_active_vendor_request = bool(vendor_row is not None and vendor_row["status"] == "ACTIVE")
+    # VENDOR_RESPONSE contract (agreed with B): a vendor only gets it while
+    # *their own* organisation holds the ACTIVE request. get_role_view
+    # already filters vendor_row by org for vendors; this guard keeps the
+    # rule true for any caller that passes an unfiltered row.
+    has_active_vendor_request = bool(
+        vendor_row is not None
+        and vendor_row["status"] == "ACTIVE"
+        and (
+            actor.role is not UserRole.EXTERNAL_VENDOR
+            or vendor_row["vendor_org_id"] == actor.vendor_org_id
+        )
+    )
     state = build_ticket_state({**raw, "has_active_vendor_request": has_active_vendor_request})
     vendor_request_status = vendor_row["status"] if vendor_row is not None else None
     visible_status = derive_display_status(

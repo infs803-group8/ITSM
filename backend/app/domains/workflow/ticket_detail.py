@@ -33,6 +33,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.clock import as_utc
 from app.domains.workflow.read_model import WorkflowReadModel
 from app.domains.workflow.serializer import ActorContext
 
@@ -90,6 +91,6 @@ def assemble_ticket_detail(
         "closure": workflow_view["closure"],
         "vendor_request": workflow_view["vendor_request"],
         "available_actions": available_actions,
-        "created_at": core["created_at"],
-        "updated_at": core["updated_at"],
+        "created_at": as_utc(core["created_at"]),
+        "updated_at": as_utc(core["updated_at"]),
     }

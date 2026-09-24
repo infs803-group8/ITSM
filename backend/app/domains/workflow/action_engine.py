@@ -14,6 +14,7 @@ metadata.
 from dataclasses import dataclass
 from datetime import datetime
 
+from app.core.clock import as_utc
 from app.core.enums import UserRole
 from app.core.errors import ApplicationError
 from app.domains.workflow.error_mapping import error_for_denial
@@ -58,7 +59,7 @@ def lock_ticket_state(
         else None
     )
     is_overdue_now = row["sla_status_code"] == "OVERDUE" or (
-        row["sla_deadline"] is not None and now >= row["sla_deadline"]
+        row["sla_deadline"] is not None and now >= as_utc(row["sla_deadline"])
     )
     sla_status = SlaStatus.OVERDUE if is_overdue_now else SlaStatus(row["sla_status_code"])
     state = TicketState(

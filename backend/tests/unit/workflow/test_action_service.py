@@ -140,3 +140,49 @@ def test_start_never_touches_sla_cycle_fields():
     service = start_service(assigned_ticket_row())
     service.start(ticket_id=1, actor=ASSIGNEE, now=NOW)
     assert service.repository.applied_status == "IN_PROGRESS"
+
+
+# ---------------------------------------------------------------------------
+# ITSM check report P1: MySQL DATETIME comes back naive through raw SQL, while
+# ``now`` is UTC-aware. The overdue judgment must normalise before comparing.
+# ---------------------------------------------------------------------------
+
+NAIVE_NOW = NOW.replace(tzinfo=None)
+
+
+def test_start_accepts_a_naive_future_sla_deadline_from_mysql():
+    row = assigned_ticket_row(sla_deadline=NAIVE_NOW + timedelta(hours=48))
+    service = start_service(row)
+    outcome = service.start(ticket_id=1, actor=ASSIGNEE, now=NOW)
+    assert outcome.status is TicketStatus.IN_PROGRESS
+
+
+def test_lock_ticket_state_treats_naive_future_deadline_as_on_track():
+    from app.domains.workflow.action_engine import lock_ticket_state
+    from app.domains.workflow.state_machine import SlaStatus
+
+    repository = RepositoryFake(
+        ticket_row=assigned_ticket_row(sla_deadline=NAIVE_NOW + timedelta(hours=1))
+    )
+    locked = lock_ticket_state(repository, ticket_id=1, now=NOW)
+    assert locked.state.sla_status is SlaStatus.ON_TRACK
+
+
+def test_lock_ticket_state_treats_naive_past_deadline_as_overdue():
+    from app.domains.workflow.action_engine import lock_ticket_state
+    from app.domains.workflow.state_machine import SlaStatus
+
+    repository = RepositoryFake(
+        ticket_row=assigned_ticket_row(sla_deadline=NAIVE_NOW - timedelta(hours=1))
+    )
+    locked = lock_ticket_state(repository, ticket_id=1, now=NOW)
+    assert locked.state.sla_status is SlaStatus.OVERDUE
+
+
+def test_lock_ticket_state_with_no_deadline_keeps_stored_status():
+    from app.domains.workflow.action_engine import lock_ticket_state
+    from app.domains.workflow.state_machine import SlaStatus
+
+    repository = RepositoryFake(ticket_row=assigned_ticket_row(sla_deadline=None))
+    locked = lock_ticket_state(repository, ticket_id=1, now=NOW)
+    assert locked.state.sla_status is SlaStatus.ON_TRACK

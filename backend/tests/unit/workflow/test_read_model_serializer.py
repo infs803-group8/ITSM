@@ -340,3 +340,39 @@ def test_build_ticket_workflow_view_full_shape_for_manager():
     assert view["status"] == "ASSIGNED"
     assert view["display_status"] == "ASSIGNED"
     assert view["vendor_request"]["status"] == "RESPONDED"
+
+
+# ---------------------------------------------------------------------------
+# VENDOR_RESPONSE contract agreed with B: only while the actor's own
+# organisation holds the ACTIVE vendor request.
+# ---------------------------------------------------------------------------
+
+
+def pending_vendor_raw():
+    return base_raw(status_code="PENDING_VENDOR", assignee_role_code="ENGINEER_TIER2")
+
+
+def test_vendor_gets_vendor_response_while_own_org_request_is_active():
+    view = build_ticket_workflow_view(pending_vendor_raw(), base_vendor_row(), actor=VENDOR)
+    assert "VENDOR_RESPONSE" in view["available_actions"]
+
+
+def test_vendor_gets_no_vendor_response_once_request_is_responded():
+    row = base_vendor_row(status="RESPONDED", responded_at="2026-09-02T01:00:00+00:00")
+    view = build_ticket_workflow_view(pending_vendor_raw(), row, actor=VENDOR)
+    assert "VENDOR_RESPONSE" not in view["available_actions"]
+
+
+def test_vendor_gets_no_vendor_response_without_any_request():
+    view = build_ticket_workflow_view(pending_vendor_raw(), None, actor=VENDOR)
+    assert "VENDOR_RESPONSE" not in view["available_actions"]
+
+
+def test_vendor_gets_no_vendor_response_for_another_orgs_active_request():
+    view = build_ticket_workflow_view(pending_vendor_raw(), base_vendor_row(), actor=OTHER_VENDOR)
+    assert "VENDOR_RESPONSE" not in view["available_actions"]
+
+
+def test_vendor_available_actions_never_include_b_owned_actions():
+    view = build_ticket_workflow_view(pending_vendor_raw(), base_vendor_row(), actor=VENDOR)
+    assert not {"EDIT", "COMMENT", "UPLOAD_ATTACHMENT"} & set(view["available_actions"])
