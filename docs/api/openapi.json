@@ -3184,11 +3184,7 @@
               "resolution": null,
               "closure": null,
               "vendor_request": null,
-              "available_actions": [
-                "START",
-                "COMMENT",
-                "UPLOAD_ATTACHMENT"
-              ],
+              "available_actions": [],
               "created_at": "2026-09-01T01:00:00Z",
               "updated_at": "2026-09-01T03:20:15Z"
             },

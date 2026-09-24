@@ -55,7 +55,8 @@ def test_assembler_returns_model_with_utc_times_and_merged_actions(monkeypatch):
         def __init__(self, _database):
             pass
 
-        def detail(self, actor, ticket_id):
+        def detail(self, actor, ticket_id, *, visibility_already_authorized=False):
+            assert visibility_already_authorized is False
             assert actor.user_id == 10
             assert ticket_id == 41
             return row
@@ -129,7 +130,7 @@ def test_tier1_cannot_read_vendor_request_payload(monkeypatch):
         def __init__(self, _database):
             pass
 
-        def detail(self, _actor, _ticket_id):
+        def detail(self, _actor, _ticket_id, *, visibility_already_authorized=False):
             return _row(status_code="IN_PROGRESS")
 
     class FakeWorkflowReadModel:

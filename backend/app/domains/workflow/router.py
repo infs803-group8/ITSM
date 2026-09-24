@@ -12,8 +12,8 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_actor, get_db, request_id_header
 from app.common.request_context import RequestContext
 from app.common.responses import ErrorResponse
-from app.core.enums import UserRole
 from app.core.errors import ApplicationError
+from app.domains.tickets.detail_assembler import assemble_ticket_detail
 from app.domains.workflow.schema import (
     AvailableAction,
     CloseRequest,
@@ -26,7 +26,6 @@ from app.domains.workflow.schema import (
     TicketActionResponse,
     VendorResponseView,
 )
-from app.domains.workflow.serializer import ActorContext
 from app.domains.workflow.service import (
     ConfirmResolutionService,
     EscalateTicketService,
@@ -37,7 +36,6 @@ from app.domains.workflow.service import (
     StartTicketService,
     SubmitResolutionService,
 )
-from app.domains.workflow.ticket_detail import assemble_ticket_detail
 
 router = APIRouter(tags=["Workflow"])
 
@@ -55,13 +53,17 @@ def build_ticket_action_response(
     event_id: int,
     comment_id: int | None = None,
     vendor_response: VendorResponseView | None = None,
+    visibility_already_authorized: bool = False,
 ) -> TicketActionResponse:
     """Shared response assembly for every write-path action -- used by this
     router and by ``vendor_workflow.router`` (C029 onward), since both
     domains' actions return the same ``TicketActionResponse`` contract.
-    Builds the fresh, post-write TicketDetail (same read C021's
-    WorkflowReadModel powers API-17 with) and wraps it in a
-    TicketActionData.
+    Builds the fresh, post-write TicketDetail with Member B's shared
+    ``tickets.detail_assembler`` -- the exact assembler GET detail (API-17)
+    uses, so an action response and a subsequent GET agree on every field,
+    including ``available_actions`` and UTC timestamps -- and wraps it in a
+    TicketActionData. The assembler never commits; callers commit the
+    action first.
 
     ``comment_id`` defaults to None -- only actions that also write a
     comment (Request User Info, Resume) pass their outcome's comment_id
@@ -76,11 +78,17 @@ def build_ticket_action_response(
     vendor_workflow-local copy of this helper. ``vendor_response`` has no
     equivalent on ``TicketDetail`` (Vendor Response, C030, is the only
     action that produces one), so it stays an explicit optional param.
+
+    ``visibility_already_authorized`` is passed through to the assembler
+    and must stay ``False`` except for ESCALATE, whose Tier 1 caller loses
+    normal GET scope the moment the ticket moves to Tier 2 (agreed with B).
     """
-    actor_context = ActorContext(
-        role=UserRole(actor.role), user_id=actor.user_id, vendor_org_id=actor.vendor_org_id
+    ticket = assemble_ticket_detail(
+        database,
+        actor=actor,
+        ticket_id=ticket_id,
+        visibility_already_authorized=visibility_already_authorized,
     )
-    ticket = assemble_ticket_detail(database, ticket_id=ticket_id, actor=actor_context)
     if ticket is None:
         raise ApplicationError("RESOURCE_NOT_FOUND", "The requested resource was not found.", 404)
     return TicketActionResponse(
@@ -89,7 +97,7 @@ def build_ticket_action_response(
             ticket=ticket,
             event_id=event_id,
             comment_id=comment_id,
-            vendor_request=ticket["vendor_request"],
+            vendor_request=ticket.vendor_request,
             vendor_response=vendor_response,
         )
     )
@@ -210,6 +218,9 @@ def escalate_ticket(
         actor=actor,
         action=AvailableAction.ESCALATE,
         event_id=outcome.event_id,
+        # The Tier 1 caller was authorised before the write but is no longer
+        # the assignee, so the normal GET scope would 404 on a saved action.
+        visibility_already_authorized=True,
     )
 
 

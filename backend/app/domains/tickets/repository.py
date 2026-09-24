@@ -116,8 +116,27 @@ class TicketRepository:
             is not None
         )
 
-    def detail(self, actor: RequestContext, ticket_id: int) -> Mapping[str, Any] | None:
-        scope, params = self.scope_sql(actor)
+    def detail(
+        self,
+        actor: RequestContext,
+        ticket_id: int,
+        *,
+        visibility_already_authorized: bool = False,
+    ) -> Mapping[str, Any] | None:
+        """Role-scoped detail row.
+
+        ``visibility_already_authorized`` skips ONLY the ticket-level scope
+        predicate, for a post-write response whose action already checked
+        visibility and permission before it ran (see
+        ``detail_assembler.assemble_ticket_detail``). The Vendor join filter
+        still applies, so a Vendor never sees another organisation's request.
+        """
+        if visibility_already_authorized:
+            scope, params = "1 = 1", {}
+            if actor.role == UserRole.EXTERNAL_VENDOR:
+                params["vendor_org_id"] = actor.vendor_org_id
+        else:
+            scope, params = self.scope_sql(actor)
         params["ticket_id"] = ticket_id
         return self.database.execute(
             text(

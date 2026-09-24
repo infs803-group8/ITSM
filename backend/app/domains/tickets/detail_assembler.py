@@ -87,11 +87,29 @@ def assemble_ticket_detail(
     *,
     actor: RequestContext,
     ticket_id: int,
+    visibility_already_authorized: bool = False,
 ) -> TicketDetail | None:
-    """Return the public TicketDetail without committing or mutating state."""
-    row = TicketRepository(database).detail(actor, ticket_id)
+    """Return the public TicketDetail without committing or mutating state.
+
+    ``visibility_already_authorized`` (default ``False``) is only for the
+    post-write response of an action that already checked visibility and
+    permission before it ran, but after which the actor falls out of the
+    normal GET scope -- today only ESCALATE (API-25), where the Tier 1
+    caller stops being the assignee. It skips only the repository's
+    ticket-level scope check; role-based field filtering is unchanged
+    (e.g. Tier 1 still gets ``vendor_request = None``). An actor who is no
+    longer in normal scope gets ``available_actions = []``: they can no
+    longer act on the ticket, and a later GET by them returns 404.
+    """
+    repository = TicketRepository(database)
+    row = repository.detail(
+        actor, ticket_id, visibility_already_authorized=visibility_already_authorized
+    )
     if row is None:
         return None
+    in_normal_scope = (
+        not visibility_already_authorized or repository.visible(actor, ticket_id)
+    )
 
     workflow = WorkflowReadModel(database).get_role_view(
         ticket_id=ticket_id, actor=_actor_context(actor)
@@ -106,8 +124,10 @@ def assemble_ticket_detail(
         display_status=str(workflow["display_status"]),
         assignee=workflow["assignee"],
         sla=workflow["sla"],
-        available_actions=merge_available_actions(
-            actor, row, workflow["available_actions"]
+        available_actions=(
+            merge_available_actions(actor, row, workflow["available_actions"])
+            if in_normal_scope
+            else []
         ),
         created_at=as_utc(row["created_at"]),
         updated_at=as_utc(row["updated_at"]),
