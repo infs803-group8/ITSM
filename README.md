@@ -8,7 +8,9 @@ Monorepo for the INFS803 Cloud Computing assignment. The system uses a FastAPI b
 - `frontend/` — React + TypeScript + Vite.
 - `infrastructure/` — Terraform, ECS templates, policies, and deployment scripts.
 - `docs/` — baseline, API contract, database design, runbooks, and evidence.
-- `.github/` — issue/PR templates and CI/CD.
+- `.github/` — issue/PR templates and code ownership.
+
+CI/CD is deferred. Run checks locally and use the manual deployment runbook when ready to release.
 
 ## Local quick start
 

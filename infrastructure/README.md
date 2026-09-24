@@ -2,7 +2,7 @@
 
 - `terraform/dev-storage/` manages the existing shared S3 bucket after import; object expiry is disabled.
 - `terraform/final/` defines idle ECS services, full task definitions, private RDS,
-  CloudFront/ALB, secrets, IAM/OIDC and disabled schedules. It reuses the shared S3 bucket.
+  CloudFront/ALB, secrets, IAM and disabled schedules. It reuses the shared S3 bucket.
 - `ecs/task-definitions/` points to the single definition source in Terraform.
 - `scripts/deploy.py` builds and pushes immutable images, updates ECS services,
   verifies health, updates scheduled task revisions and rolls back failed releases.

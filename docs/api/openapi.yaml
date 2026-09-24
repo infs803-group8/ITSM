@@ -33,7 +33,7 @@
       "tags":
         - "System"
       "summary": "Backend health check"
-      "description": "Checks backend version and database readiness; used by ALB and CI/CD smoke tests.\n\nAccess: Public. Owner: Member A."
+      "description": "Checks backend version and database readiness; used by ALB and deployment smoke tests.\n\nAccess: Public. Owner: Member A."
       "operationId": "api01Health"
       "x-api-id": "API-01"
       "x-owner": "A"

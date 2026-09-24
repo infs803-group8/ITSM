@@ -11,7 +11,7 @@
 /backend/app/contracts/               @BIN-LIN-AUT2026 @Nicole-Gao2026 @andywen-aut
 /backend/app/db/                      @BIN-LIN-AUT2026 @Nicole-Gao2026 @andywen-aut
 
-# Member A — platform, attachments, dashboard, AWS, Docker, and CI/CD.
+# Member A — platform, attachments, dashboard, AWS, and Docker.
 /backend/app/domains/platform/        @BIN-LIN-AUT2026
 /backend/app/domains/attachments/     @BIN-LIN-AUT2026
 /backend/app/domains/dashboard/       @BIN-LIN-AUT2026
