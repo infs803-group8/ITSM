@@ -1,17 +1,18 @@
 """Ticket core orchestration for API-15 through API-18."""
 
 from collections.abc import Mapping
-from datetime import timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.common.pagination import PaginationMeta
 from app.common.request_context import RequestContext
-from app.core.clock import as_mysql_utc, as_utc, utc_now
+from app.core.clock import as_utc, utc_now
 from app.core.enums import (
     AvailableAction,
     Category,
+    EventScope,
+    EventType,
     PendingUserReason,
     Priority,
     SlaStatus,
@@ -20,6 +21,7 @@ from app.core.enums import (
     VendorRequestStatus,
 )
 from app.core.errors import ApplicationError
+from app.domains.audit.service import AuditService
 from app.domains.reference_data.schema import VendorOrganisation
 from app.domains.tickets.repository import TicketRepository
 from app.domains.tickets.schema import (
@@ -27,7 +29,6 @@ from app.domains.tickets.schema import (
     PendingUserView,
     RequesterSummary,
     ResolutionView,
-    SlaView,
     TicketCreateRequest,
     TicketDetail,
     TicketDetailResponse,
@@ -37,12 +38,17 @@ from app.domains.tickets.schema import (
     VendorRequestView,
 )
 from app.domains.users.schema import AssigneeSummary
+from app.domains.workflow.read_model import WorkflowReadModel
+from app.domains.workflow.serializer import ActorContext
+from app.domains.workflow.ticket_creation import initialize_ticket_workflow
 
 
 class TicketService:
     def __init__(self, database: Session) -> None:
         self.database = database
         self.repository = TicketRepository(database)
+        self.audit = AuditService(database)
+        self.workflow = WorkflowReadModel(database)
 
     @staticmethod
     def _visible_status(actor: RequestContext, value: str) -> TicketStatus:
@@ -74,69 +80,60 @@ class TicketService:
         )
 
     @staticmethod
-    def _actions(actor: RequestContext, row: Mapping[str, Any]) -> list[AvailableAction]:
+    def _actor_context(actor: RequestContext) -> ActorContext:
+        return ActorContext(
+            role=UserRole(actor.role),
+            user_id=actor.user_id,
+            vendor_org_id=actor.vendor_org_id,
+        )
+
+    @staticmethod
+    def _actions(
+        actor: RequestContext,
+        row: Mapping[str, Any],
+        workflow_actions: list[str],
+    ) -> list[AvailableAction]:
         internal_status = str(row["status_code"])
         if internal_status == TicketStatus.CLOSED:
             return []
+        actions = [AvailableAction(action) for action in workflow_actions]
         if actor.role == UserRole.EXTERNAL_VENDOR:
-            return (
-                [AvailableAction.VENDOR_RESPONSE, AvailableAction.UPLOAD_ATTACHMENT]
-                if row["vendor_request_status"] == VendorRequestStatus.ACTIVE
-                else []
-            )
-        actions = [AvailableAction.COMMENT, AvailableAction.UPLOAD_ATTACHMENT]
+            if (
+                row["vendor_request_status"] == VendorRequestStatus.ACTIVE
+                and AvailableAction.UPLOAD_ATTACHMENT not in actions
+            ):
+                actions.append(AvailableAction.UPLOAD_ATTACHMENT)
+            return actions
+        if not (actor.role == UserRole.USER and internal_status == TicketStatus.PENDING_USER):
+            actions.append(AvailableAction.COMMENT)
+        actions.append(AvailableAction.UPLOAD_ATTACHMENT)
         if actor.role == UserRole.USER:
             if internal_status == TicketStatus.UNASSIGNED:
-                actions.insert(0, AvailableAction.EDIT)
-            if internal_status == TicketStatus.PENDING_USER:
-                actions.append(AvailableAction.RESUME)
-                if row["pending_user_reason"] == PendingUserReason.RESOLUTION_CONFIRMATION:
-                    actions.append(AvailableAction.CONFIRM_RESOLUTION)
-            if internal_status == TicketStatus.RESOLVED:
-                actions.extend([AvailableAction.REOPEN, AvailableAction.CLOSE])
+                actions.append(AvailableAction.EDIT)
         elif actor.role == UserRole.SERVICE_DESK_MANAGER:
-            actions.insert(0, AvailableAction.EDIT)
-            actions.append(AvailableAction.ASSIGN)
-        elif int(row["assignee_id"] or 0) == actor.user_id:
-            if internal_status in {TicketStatus.ASSIGNED, TicketStatus.REOPENED}:
-                actions.append(AvailableAction.START)
-            if internal_status == TicketStatus.IN_PROGRESS:
-                actions.extend([AvailableAction.REQUEST_USER_INFO, AvailableAction.RESOLVE])
-                if actor.role == UserRole.ENGINEER_TIER1:
-                    actions.append(AvailableAction.ESCALATE)
-                if actor.role == UserRole.ENGINEER_TIER2:
-                    actions.append(AvailableAction.REQUEST_VENDOR)
-            if internal_status == TicketStatus.PENDING_VENDOR:
-                actions.append(AvailableAction.RESOLVE)
+            actions.append(AvailableAction.EDIT)
         return actions
 
-    @classmethod
-    def _summary(cls, actor: RequestContext, row: Mapping[str, Any]) -> TicketSummary:
-        sla = None
-        if actor.role != UserRole.EXTERNAL_VENDOR:
-            sla = SlaView(
-                cycle_no=int(row["sla_cycle_no"]),
-                status=SlaStatus(str(row["sla_status_code"])),
-                started_at=as_utc(row["sla_started_at"]) if row["sla_started_at"] else None,
-                deadline=as_utc(row["sla_deadline"]) if row["sla_deadline"] else None,
-            )
+    def _summary(self, actor: RequestContext, row: Mapping[str, Any]) -> TicketSummary:
+        workflow = self.workflow.get_role_view(
+            ticket_id=int(row["ticket_id"]), actor=self._actor_context(actor)
+        )
         return TicketSummary(
             ticket_id=int(row["ticket_id"]),
             title=str(row["title"]),
             category=Category(str(row["category_code"])),
             priority=Priority(str(row["priority_code"])),
-            status=cls._visible_status(actor, str(row["status_code"])),
-            display_status=cls._display_status(actor, str(row["status_code"])),
-            assignee=cls._assignee(row) if actor.role != UserRole.EXTERNAL_VENDOR else None,
-            sla=sla,
-            available_actions=cls._actions(actor, row),
+            status=TicketStatus(workflow["status"]),
+            display_status=str(workflow["display_status"]),
+            assignee=workflow["assignee"],
+            sla=workflow["sla"],
+            available_actions=self._actions(actor, row, workflow["available_actions"]),
             created_at=as_utc(row["created_at"]),
             updated_at=as_utc(row["updated_at"]),
         )
 
-    @classmethod
-    def _detail(cls, actor: RequestContext, row: Mapping[str, Any]) -> TicketDetail:
-        summary = cls._summary(actor, row)
+    def _detail(self, actor: RequestContext, row: Mapping[str, Any]) -> TicketDetail:
+        summary = self._summary(actor, row)
         vendor = None
         if row["vendor_request_id"] is not None and actor.role in {
             UserRole.ENGINEER_TIER2,
@@ -205,10 +202,20 @@ class TicketService:
                 description=request.description,
                 category=request.category.value,
                 priority=request.priority.value,
-                started_at=as_mysql_utc(now),
-                deadline=as_mysql_utc(now + timedelta(hours=48)),
             )
-            self.repository.add_creation_events(ticket, actor.user_id)
+            self.audit.append_event(
+                ticket_id=ticket.ticket_id,
+                event_type=EventType.TICKET_CREATED,
+                scope=EventScope.USER_VISIBLE,
+                actor_id=actor.user_id,
+                metadata={},
+            )
+            initialize_ticket_workflow(
+                self.database,
+                ticket_id=ticket.ticket_id,
+                category_code=request.category.value,
+                now=now,
+            )
             self.database.commit()
             row = self.repository.detail(actor, ticket.ticket_id)
             assert row is not None
@@ -240,16 +247,21 @@ class TicketService:
                 raise ApplicationError(
                     "DATA_SCOPE_DENIED", "The assignee filter is outside your data scope.", 403
                 )
-        internal_status = status
+        internal_statuses = [status.value] if status is not None else None
         if actor.role == UserRole.USER and status == TicketStatus.PENDING_VENDOR:
             raise ApplicationError(
                 "DATA_SCOPE_DENIED", "The requested status is not visible.", 403
             )
+        if actor.role == UserRole.USER and status == TicketStatus.IN_PROGRESS:
+            internal_statuses = [
+                TicketStatus.IN_PROGRESS.value,
+                TicketStatus.PENDING_VENDOR.value,
+            ]
         rows, total = self.repository.list(
             actor,
             page=page,
             page_size=page_size,
-            status=internal_status.value if internal_status else None,
+            statuses=internal_statuses,
             category=category.value if category else None,
             priority=priority.value if priority else None,
             sla_status=sla_status.value if sla_status else None,

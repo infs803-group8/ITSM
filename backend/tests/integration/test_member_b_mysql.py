@@ -115,8 +115,22 @@ def test_member_b_api_12_through_20_with_real_mysql():
             "API-15",
         )
         ticket_id = created["data"]["ticket_id"]
-        assert created["data"]["status"] == "UNASSIGNED"
+        assert created["data"]["status"] == "ASSIGNED"
+        assert created["data"]["assignee"]["tier"] == "TIER1"
+        assert "NETWORK" in created["data"]["assignee"]["skills"]
         assert created["data"]["sla"]["cycle_no"] == 1
+        assert created["data"]["sla"]["deadline"] is not None
+        assert "EDIT" not in created["data"]["available_actions"]
+
+        with engine.connect() as connection:
+            event_types = connection.execute(
+                text(
+                    "SELECT event_type FROM ticket_events "
+                    "WHERE ticket_id=:ticket_id ORDER BY event_id"
+                ),
+                {"ticket_id": ticket_id},
+            ).scalars().all()
+        assert event_types == ["TICKET_CREATED", "SLA_CYCLE_STARTED", "AUTO_ASSIGNED"]
 
         listed = _expect(
             client.get("/api/v1/tickets?search=integration", headers=_auth(1101)),
@@ -135,7 +149,7 @@ def test_member_b_api_12_through_20_with_real_mysql():
         updated = _expect(
             client.patch(
                 f"/api/v1/tickets/{ticket_id}",
-                headers=_auth(1101),
+                headers=_auth(1104),
                 json={"priority": "URGENT"},
             ),
             200,
@@ -160,6 +174,47 @@ def test_member_b_api_12_through_20_with_real_mysql():
             "API-19",
         )
         assert comments["data"][0]["message"] == "Additional information"
+
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO vendor_requests "
+                    "(ticket_id,vendor_org_id,requested_by_id,vendor_message,status,"
+                    "created_at,responded_at) VALUES "
+                    "(:ticket_id,2101,1103,'Please investigate','RESPONDED',"
+                    "CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"
+                ),
+                {"ticket_id": ticket_id},
+            )
+
+        vendor_detail = _expect(
+            client.get(f"/api/v1/tickets/{ticket_id}", headers=_auth(1105)),
+            200,
+            "API-17 vendor-safe status",
+        )
+        assert vendor_detail["data"]["status"] == "IN_PROGRESS"
+        assert vendor_detail["data"]["display_status"] == "IN_PROGRESS"
+
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE tickets SET status_code='PENDING_VENDOR', assignee_id=1103 "
+                    "WHERE ticket_id=:ticket_id"
+                ),
+                {"ticket_id": ticket_id},
+            )
+        in_progress = _expect(
+            client.get(
+                "/api/v1/tickets?status=IN_PROGRESS",
+                headers=_auth(1101),
+            ),
+            200,
+            "API-16 visible status filter",
+        )
+        filtered_ticket = next(
+            item for item in in_progress["data"] if item["ticket_id"] == ticket_id
+        )
+        assert filtered_ticket["status"] == "IN_PROGRESS"
 
         hidden = client.get(f"/api/v1/tickets/{ticket_id}", headers=_auth(1102))
         assert hidden.status_code == 404

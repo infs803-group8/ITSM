@@ -1,7 +1,6 @@
 """Ticket persistence and role-scoped read queries."""
 
 from collections.abc import Mapping, Sequence
-from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select, text
@@ -87,8 +86,6 @@ class TicketRepository:
         description: str,
         category: str,
         priority: str,
-        started_at: datetime,
-        deadline: datetime,
     ) -> Ticket:
         ticket = Ticket(
             requester_id=requester_id,
@@ -96,31 +93,11 @@ class TicketRepository:
             description=description,
             category_code=category,
             priority_code=priority,
-            status_code="UNASSIGNED",
-            sla_cycle_no=1,
-            sla_status_code="ON_TRACK",
-            sla_started_at=started_at,
-            sla_deadline=deadline,
+            status_code="NEW",
         )
         self.database.add(ticket)
         self.database.flush()
         return ticket
-
-    def add_creation_events(self, ticket: Ticket, actor_id: int) -> None:
-        self.database.execute(
-            text(
-                "INSERT INTO ticket_events "
-                "(ticket_id, event_type, scope, actor_id, cycle_no, metadata) VALUES "
-                "(:ticket_id, 'TICKET_CREATED', 'USER_VISIBLE', :actor_id, 1, JSON_OBJECT()), "
-                "(:ticket_id, 'SLA_CYCLE_STARTED', 'INTERNAL_ONLY', :actor_id, 1, "
-                "JSON_OBJECT('sla_deadline', :deadline))"
-            ),
-            {
-                "ticket_id": ticket.ticket_id,
-                "actor_id": actor_id,
-                "deadline": ticket.sla_deadline.isoformat(),
-            },
-        )
 
     def get_model(self, ticket_id: int, *, for_update: bool = False) -> Ticket | None:
         statement = select(Ticket).where(Ticket.ticket_id == ticket_id)
@@ -156,7 +133,7 @@ class TicketRepository:
         *,
         page: int,
         page_size: int,
-        status: str | None,
+        statuses: Sequence[str] | None,
         category: str | None,
         priority: str | None,
         sla_status: str | None,
@@ -167,8 +144,14 @@ class TicketRepository:
     ) -> tuple[Sequence[Mapping[str, Any]], int]:
         scope, params = self.scope_sql(actor)
         filters = [scope]
+        if statuses:
+            status_parameters: list[str] = []
+            for index, value in enumerate(statuses):
+                key = f"status_{index}"
+                status_parameters.append(f":{key}")
+                params[key] = value
+            filters.append(f"t.status_code IN ({', '.join(status_parameters)})")
         for column, value, key in (
-            ("t.status_code", status, "status"),
             ("t.category_code", category, "category"),
             ("t.priority_code", priority, "priority"),
             ("t.sla_status_code", sla_status, "sla_status"),

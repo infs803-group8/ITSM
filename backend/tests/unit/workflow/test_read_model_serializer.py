@@ -129,6 +129,13 @@ def test_vendor_sees_closed_regardless_of_vendor_request_status():
     )
 
 
+def test_vendor_workflow_view_masks_raw_status_in_both_status_fields():
+    raw = base_raw(status_code="REOPENED")
+    view = build_ticket_workflow_view(raw, base_vendor_row(status="RESPONDED"), actor=VENDOR)
+    assert view["status"] == "IN_PROGRESS"
+    assert view["display_status"] == "IN_PROGRESS"
+
+
 # ---------------------------------------------------------------------------
 # serialize_requester / serialize_assignee
 # ---------------------------------------------------------------------------

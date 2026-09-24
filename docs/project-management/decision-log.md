@@ -29,13 +29,13 @@
 - **确定行为（草案）**：
   1. 统一原则：任何返回 `TicketDetail`（无论是 API-17 直接返回，还是嵌入在 API-21–31 的 `TicketActionResponse.ticket` 里）都必须经过与 API-17 相同的 Role-aware Serializer，不因为是"写操作的返回值"而跳过角色过滤。
   2. Vendor 角色下：`ticket.description`、`ticket.requester`、`ticket.assignee`、`ticket.sla`、`ticket.pending_user`、`ticket.resolution`、`ticket.closure` 一律置 `null`；`ticket.vendor_request`/`vendor_response` 仅保留本组织当前或历史范围内的内容。
-  3. Vendor 是否能看到 `ticket.status`/`display_status` 的具体内部值（例如 `PENDING_VENDOR`）需要与 B/D 单独确认——倾向于 Vendor 只依赖 `vendor_request.status`（ACTIVE/RESPONDED/CANCELLED）判断进度，不暴露 Ticket 内部生命周期状态，但这一点标记为**待确认子项**，不在本次草案中擅自定案。
+  3. B/C/D 已确认：Vendor 的 `ticket.status` 与 `display_status` 均使用同一角色感知三态映射，只返回 `CLOSED`、本组织存在 ACTIVE Request 时的 `PENDING_VENDOR`，或其他情况下的 `IN_PROGRESS`；不得返回 `ASSIGNED`、`REOPENED`、`RESOLVED` 等内部生命周期状态。`vendor_request.status` 继续返回 ACTIVE/RESPONDED/CANCELLED。
   4. 修正 OpenAPI 中相关接口的 Success Example，按各自真实调用角色展示，而不是统一按 Vendor 视角或复用 Manager/Tier2 视角的满字段示例：API-27（Vendor Response，调用者为本组织持有 Active Request 的 Vendor）按 Vendor 视角，上述字段应为 null；API-26（Request Vendor，调用者为当前受派的 Tier2）按 Tier2 视角；API-30（Reopen，调用者为工单 requester）按 requester 视角。三者调用角色不同，不能统一改成 Vendor 的空字段版本。（2026-09-15 修正：此前版本误将三者统一描述为 Vendor 可达接口。）
   5. 新增 Contract Test：以 Vendor Actor 调用 API-27，断言返回体中上述字段确为 `null`（对应测试矩阵 T-AUTH-03）。
 - **受影响任务**：C030（API-27 实现）、C038（合同核验）、C047（Vendor 隔离联调）。
 - **Review/PR**：C030 的 PR 需要包含新增的 Vendor 越权字段 Contract Test；B/D 需 Review 是否接受 `ticket.status` 的处理方式。
 - **测试预期**：`test_api27_vendor_scope.py` 之类，断言 7 个字段为 null，且 `vendor_request`/`vendor_response` 只含本组织数据。
-- **状态**：草案技术方案可执行；`ticket.status` 处理方式待 B/D 确认。
+- **状态**：已由 B/C/D 确认；Vendor `ticket.status` 三态映射已进入实现与回归测试。
 
 ---
 
