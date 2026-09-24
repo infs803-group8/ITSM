@@ -2,99 +2,37 @@
 shared by every C024-C034 endpoint, plus the request bodies for the
 workflow actions those endpoints accept.
 
-Field shapes are copied 1:1 from docs/api/openapi.yaml's
-``TicketDetail``/``TicketActionData``/``TicketActionResponse`` and the
-per-action ``*Request`` schemas. ``TicketDetail`` is nominally Member B's
-schema (``app.domains.tickets.*`` is still an empty stub), defined here as
-a stopgap so C024-C034 can return a complete, schema-correct response
-today -- see ``workflow/ticket_detail.py``'s docstring for the same
-reasoning applied to assembling its data. Once B builds their own
-``tickets/schema.py``, these models should move there and every import
-here should be repointed, since B, not C, owns that shape long-term.
+``TicketDetail`` and its nested views are Member B's schema
+(``app.domains.tickets.schema``) and ``AvailableAction`` lives in
+``app.core.enums``; both are imported here rather than redefined, so the
+ticket inside every action response is the exact model GET detail
+(API-17) returns. ``AvailableAction`` is re-exported for existing callers.
+``VendorResponseView`` stays here: only the Vendor Response action
+(API-27) produces one and it has no counterpart on ``TicketDetail``.
 """
 
 from datetime import datetime
-from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from app.core.enums import Category, Priority, TicketStatus
+from app.core.clock import as_utc
+from app.core.enums import AvailableAction
+from app.domains.tickets.schema import TicketDetail, VendorRequestView
 
-
-class AvailableAction(StrEnum):
-    """docs/api/openapi.yaml: AvailableAction. 11 of these 14 members are
-    workflow actions (see ``serializer._PUBLIC_ACTION_LABELS``); EDIT,
-    COMMENT and UPLOAD_ATTACHMENT belong to other domains.
-    """
-
-    EDIT = "EDIT"
-    COMMENT = "COMMENT"
-    UPLOAD_ATTACHMENT = "UPLOAD_ATTACHMENT"
-    ASSIGN = "ASSIGN"
-    START = "START"
-    REQUEST_USER_INFO = "REQUEST_USER_INFO"
-    RESUME = "RESUME"
-    ESCALATE = "ESCALATE"
-    REQUEST_VENDOR = "REQUEST_VENDOR"
-    VENDOR_RESPONSE = "VENDOR_RESPONSE"
-    RESOLVE = "RESOLVE"
-    CONFIRM_RESOLUTION = "CONFIRM_RESOLUTION"
-    REOPEN = "REOPEN"
-    CLOSE = "CLOSE"
-
-
-class RequesterSummary(BaseModel):
-    user_id: int
-    display_name: str
-
-
-class AssigneeSummary(BaseModel):
-    user_id: int
-    display_name: str
-    tier: str
-    skills: list[Category]
-    is_available: bool
-    active_load: int = Field(ge=0)
-
-
-class SlaView(BaseModel):
-    cycle_no: int = Field(ge=1)
-    status: str
-    started_at: datetime | None
-    deadline: datetime | None
-
-
-class PendingUserView(BaseModel):
-    reason: str
-    deadline: datetime
-
-
-class ResolutionView(BaseModel):
-    summary: str
-    type: str | None
-    resolved_at: datetime | None
-    auto_close_at: datetime | None
-
-
-class ClosureView(BaseModel):
-    type: str
-    closed_at: datetime
-
-
-class VendorOrganisationView(BaseModel):
-    vendor_org_id: int
-    name: str
-    is_active: bool
-
-
-class VendorRequestView(BaseModel):
-    vendor_request_id: int
-    vendor_org: VendorOrganisationView
-    status: str
-    vendor_message: str
-    created_at: datetime
-    responded_at: datetime | None
+__all__ = [
+    "AssignmentRequest",
+    "AvailableAction",
+    "CloseRequest",
+    "EscalateRequest",
+    "ReopenRequest",
+    "RequestUserInfoRequest",
+    "ResolveRequest",
+    "ResumeRequest",
+    "TicketActionData",
+    "TicketActionResponse",
+    "VendorResponseView",
+]
 
 
 class VendorResponseView(BaseModel):
@@ -103,30 +41,10 @@ class VendorResponseView(BaseModel):
     message: str
     created_at: datetime
 
-
-class TicketDetail(BaseModel):
-    """docs/api/openapi.yaml: TicketDetail. Required keys are stable;
-    role-unavailable values are JSON null (enforced by
-    ``workflow/ticket_detail.assemble_ticket_detail``, not by this model).
-    """
-
-    ticket_id: int
-    title: str
-    description: str | None
-    category: Category
-    priority: Priority
-    status: TicketStatus
-    display_status: str
-    requester: RequesterSummary | None
-    assignee: AssigneeSummary | None
-    sla: SlaView | None
-    pending_user: PendingUserView | None
-    resolution: ResolutionView | None
-    closure: ClosureView | None
-    vendor_request: VendorRequestView | None
-    available_actions: list[AvailableAction]
-    created_at: datetime
-    updated_at: datetime
+    @field_validator("created_at", mode="after")
+    @classmethod
+    def created_at_is_utc(cls, value: datetime) -> datetime:
+        return as_utc(value)
 
 
 class TicketActionData(BaseModel):
