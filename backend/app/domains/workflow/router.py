@@ -89,7 +89,7 @@ def build_ticket_action_response(
             ticket=ticket,
             event_id=event_id,
             comment_id=comment_id,
-            vendor_request=ticket.vendor_request,
+            vendor_request=ticket["vendor_request"],
             vendor_response=vendor_response,
         )
     )

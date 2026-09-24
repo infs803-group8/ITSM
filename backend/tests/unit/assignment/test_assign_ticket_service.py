@@ -187,3 +187,26 @@ def test_closed_ticket_is_rejected():
         service.assign_ticket(ticket_id=1, actor=MANAGER, assignee_id=20, reason=None, now=NOW)
     assert excinfo.value.code == "TICKET_CLOSED"
     assert excinfo.value.status_code == 409
+
+
+# ITSM check report P1: raw-SQL MySQL DATETIME values are naive.
+NAIVE_NOW = NOW.replace(tzinfo=None)
+
+
+def test_assign_accepts_a_naive_future_sla_deadline_from_mysql():
+    row = unassigned_ticket_row(sla_deadline=NAIVE_NOW + timedelta(hours=48))
+    service = service_with(row, eligible_tier1_row())
+    outcome = service.assign_ticket(
+        ticket_id=1, actor=MANAGER, assignee_id=20, reason=None, now=NOW
+    )
+    assert outcome.status is TicketStatus.ASSIGNED
+
+
+def test_naive_past_sla_deadline_is_treated_as_overdue_and_requires_tier2():
+    row = unassigned_ticket_row(
+        sla_status_code="ON_TRACK", sla_deadline=NAIVE_NOW - timedelta(hours=1)
+    )
+    service = service_with(row, eligible_tier1_row())
+    with pytest.raises(ApplicationError) as excinfo:
+        service.assign_ticket(ticket_id=1, actor=MANAGER, assignee_id=20, reason=None, now=NOW)
+    assert excinfo.value.code == "ASSIGNEE_NOT_ELIGIBLE"

@@ -10,7 +10,7 @@ shape B's create-ticket transaction ends up taking, without this service
 assuming it.
 """
 
-from app.core.clock import utc_now
+from app.core.clock import as_utc, utc_now
 from app.domains.assignment.ranking import Candidate, pick_winner
 from app.domains.assignment.repository import AssignmentRepository
 
@@ -135,7 +135,7 @@ class AssignTicketService:
         # C024.02: judge overdue-ness from the real deadline, not only the
         # (possibly lagging, job-maintained) stored sla_status_code.
         is_overdue_now = row["sla_status_code"] == "OVERDUE" or (
-            row["sla_deadline"] is not None and now >= row["sla_deadline"]
+            row["sla_deadline"] is not None and now >= as_utc(row["sla_deadline"])
         )
         sla_status = SlaStatus.OVERDUE if is_overdue_now else SlaStatus(row["sla_status_code"])
 
