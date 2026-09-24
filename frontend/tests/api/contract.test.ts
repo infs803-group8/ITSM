@@ -10,7 +10,7 @@ import manifest from "../../src/api/generated/contract-manifest.json";
 import { operations, assertResponse, successExample } from "./contract";
 
 describe("generated API / source contract alignment", () => {
-  it("detects a contract change that has not been regenerated (also runs in existing CI)", () => {
+  it("detects a contract change that has not been regenerated", () => {
     const source = readFileSync(fileURLToPath(new URL("../../../docs/api/openapi.yaml", import.meta.url)), "utf8").replace(/\r\n/g, "\n");
     expect(manifest.sha256).toBe(createHash("sha256").update(source).digest("hex"));
   });

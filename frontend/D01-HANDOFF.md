@@ -6,6 +6,54 @@
 
 本次只修改前端。`backend`、`docs/api/openapi.yaml`、`.github`、基础设施和旧的独立 `INFS803/frontend` 均不修改。不执行 commit、push 或创建 PR，由你检查后手动提交。
 
+## 2026-09-24：仅对齐 main 依赖与本机环境
+
+按你的选择，本次没有把整个 main 合入 D01。main 仍为 `5ff9efb`，D01 仍基于原有提交；后端、OpenAPI、GitHub Actions 文件均未随此次改动同步。
+
+- `package.json`、`package-lock.json`：共享直接依赖的声明范围与 main 一致，实际安装的 16 项共享直接依赖版本也逐项核对一致。主要工具为 Vite 8.2.2、React 插件 6.1.1、Vitest 5.0.1、jsdom 30.0.1、jest-dom 7.0.1。
+- 保留 D01 的生成器 0.99.0、Ajv、YAML、Token/错误处理、Mock 和完整检查脚本，没有退回 main 的空白接口基础或允许零测试通过的配置。
+- D01 额外声明的 `@types/node` 从 22.10.0 调整为兼容 Vite 8 的 22.19.0。它是开发时的类型包，不是 Node 本体。
+- 本机系统级 Node 已从 22.19.0 升级到官方 22.23.3，随安装包带入 npm 10.9.9；官网安装包 SHA256 与 Windows 签名均已验证。该系统安装也会被电脑上其他使用同一路径的项目使用。
+- 新增 `.nvmrc` 记录选用的 Node 版本，并收紧 `engines.node` 到新版 jsdom/Vitest 支持的范围。Windows MSI 安装无需使用 nvm；`.nvmrc` 是团队环境版本记录，不会自行下载 Node。
+- `README.md` 更新 Node、依赖复现和本地检查说明；`tests/api/contract.test.ts` 只修改了一条测试的名称，移除依赖旧 CI 状态的表述，断言不变。
+
+版本对齐阶段的实际验证（后续安全修复见下一节）：
+
+- 新环境下 `npm ci` 成功，无依赖冲突及 Node engine 警告；`npm ls --depth=0` 通过。
+- `npm run check` 通过：32 个接口/9 个 Mock 的生成一致性检查、TypeScript、66 项单元/组件测试、Vite 8 生产构建。
+- `npm run test:api:browser` 的 2 项浏览器测试通过；现有 MSW worker 与安装的 MSW 版本一致。
+- 本次没有改 API 合同，生成源码也没有变化。以后真正合并 main 的合同变动时，再重新生成。
+- main 原始锁文件的 `npm audit` 为 0 项告警；D01 的生产依赖检查 `npm audit --omit=dev` 也是 0 项告警。
+- 当时 D01 完整开发依赖审计有 6 项包级告警（4 high、2 moderate），来自生成器依赖链中的 js-yaml 4.2.0，以及 D01 固定的 Ajv 8.17.1、yaml 2.8.1。4 项 high 包级计数包含同一 js-yaml 问题向上游的传播，不表示有 4 个独立的浏览器运行时漏洞。当前 Ajv 未启用公告所述的 `$data` 选项，但这不等于可以忽略依赖更新。
+- 版本对齐阶段没有运行 `npm audit fix`，也没有降级固定生成器。这些告警现已在下面的独立安全修复中处理；仍不要对未经审查的外部 YAML 运行生成器。
+
+现在关闭并重新打开 VS Code 终端，运行 `node -v`、`npm -v`，应分别显示 `v22.23.3`、`10.9.9`。开发方式仍是 `npm run dev`，后续还原依赖仍使用 `npm ci`。
+
+上述项目修改尚未提交、推送或创建 PR，全部在 `frontend/` 内。本机 Node 安装不属于 Git 提交内容。
+
+## 2026-09-24：开发依赖安全告警修复（最新结果）
+
+在你授权后，仅在前端做了以下修复，没有合并 main、修改后端或改动 OpenAPI：
+
+| 文件 | 本次修复 |
+| --- | --- |
+| `package.json` | Ajv 8.17.1 → 8.20.0；yaml 2.8.1 → 2.9.1；对 `@hey-api/json-schema-ref-parser@1.4.4` 添加仅针对 js-yaml 的 4.3.2 覆盖规则 |
+| `package-lock.json` | 记录三个修复版本、下载地址和完整性信息，供 `npm ci` 复现 |
+| `README.md`、本文件 | 说明覆盖规则的原因、移除条件和验证结果 |
+
+生成器仍固定为 `@hey-api/openapi-ts@0.99.0`。查询时其最新版本以及最新 parser 仍固定依赖有告警的 js-yaml 4.2.0，因此没有盲目升级或降级生成器，而是对该依赖链进行小范围覆盖。这不是忽略告警，而是实际安装修复版本。未来上游 parser 修复后，应重新检查这条带版本限制的规则并移除不再需要的覆盖，然后重跑下列验证。
+
+本次重新验证结果：
+
+- `npm ci` 成功；248 个本机已安装包的版本均与锁文件一致。
+- `npm ls --all --json` 成功，无缺失或无效依赖；与 main 共用的 16 项直接依赖锁定版本仍一致。
+- 完整 `npm audit`：**0 项已知告警**（修复前为 6）；`npm audit --omit=dev` 也是 0。该结果对应本次查询的安全数据库，不代表以后无需再审计。
+- `npm run check` 通过：32 个接口、9 个 Mock 的生成一致性；TypeScript；66 项单元/组件测试；生产构建。
+- `npm run test:api:browser`：2 项浏览器测试通过。
+- API 生成源码、Mock 生成文件及合同内容均未变化；没有使用 `npm audit fix --force`。
+
+仍未执行 commit、push 或 PR。Git 中看到的较大锁文件差异同时包含此前对齐 main 工具版本的未提交修改，不全是本次三个安全修复包造成的。
+
 ## 哪里修改、添加了什么
 
 | 位置（相对于此 frontend） | 内容 |
