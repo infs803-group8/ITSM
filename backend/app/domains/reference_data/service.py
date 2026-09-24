@@ -54,6 +54,12 @@ class ReferenceDataService:
         statuses = list(TicketStatus)
         if actor.role == UserRole.USER:
             statuses.remove(TicketStatus.PENDING_VENDOR)
+        elif actor.role == UserRole.EXTERNAL_VENDOR:
+            statuses = [
+                TicketStatus.IN_PROGRESS,
+                TicketStatus.PENDING_VENDOR,
+                TicketStatus.CLOSED,
+            ]
         return ReferenceDataResponse(
             data=ReferenceData(
                 categories=list(Category),

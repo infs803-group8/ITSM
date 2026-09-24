@@ -2104,7 +2104,6 @@
         "access_token":
           "type": "string"
           "description": "JWT."
-          "writeOnly": true
         "token_type":
           "type": "string"
           "description": "Token type."
@@ -3395,4 +3394,3 @@
         - "TICKET_CLOSED_MANUAL"
         - "TICKET_CLOSED_AUTO"
         - "ATTACHMENT_ADDED"
-

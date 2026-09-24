@@ -1,3 +1,7 @@
+from pathlib import Path
+
+import yaml
+
 from app.main import app
 
 
@@ -20,3 +24,14 @@ def test_auth_request_models_reject_additional_fields_in_openapi():
     assert schemas["RegisterRequest"]["additionalProperties"] is False
     assert schemas["LoginRequest"]["additionalProperties"] is False
     assert schemas["UpdateProfileRequest"]["additionalProperties"] is False
+
+
+def test_login_access_token_is_a_readable_response_field():
+    contract_path = Path(__file__).resolve().parents[3] / "docs" / "api" / "openapi.yaml"
+    with contract_path.open(encoding="utf-8") as source:
+        document = yaml.safe_load(source)
+
+    access_token = document["components"]["schemas"]["LoginData"]["properties"][
+        "access_token"
+    ]
+    assert access_token.get("writeOnly") is not True

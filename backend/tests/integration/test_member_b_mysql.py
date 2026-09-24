@@ -83,6 +83,17 @@ def test_member_b_api_12_through_20_with_real_mysql():
         assert reference["data"]["timers"]["engineering_sla_hours"] == 48
         assert "PENDING_VENDOR" not in reference["data"]["ticket_statuses"]
 
+        vendor_reference = _expect(
+            client.get("/api/v1/reference-data", headers=_auth(1105)),
+            200,
+            "API-12 vendor-visible statuses",
+        )
+        assert vendor_reference["data"]["ticket_statuses"] == [
+            "IN_PROGRESS",
+            "PENDING_VENDOR",
+            "CLOSED",
+        ]
+
         assignees = _expect(
             client.get(
                 "/api/v1/users/assignees?tier=TIER2&category=NETWORK",

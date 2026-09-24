@@ -6,6 +6,7 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.common.pagination import PaginationMeta
+from app.core.clock import as_utc
 from app.core.enums import (
     AvailableAction,
     Category,
@@ -86,10 +87,20 @@ class SlaView(BaseModel):
     started_at: datetime | None
     deadline: datetime | None
 
+    @field_validator("started_at", "deadline", mode="after")
+    @classmethod
+    def datetimes_are_utc(cls, value: datetime | None) -> datetime | None:
+        return as_utc(value) if value is not None else None
+
 
 class PendingUserView(BaseModel):
     reason: PendingUserReason
     deadline: datetime
+
+    @field_validator("deadline", mode="after")
+    @classmethod
+    def deadline_is_utc(cls, value: datetime) -> datetime:
+        return as_utc(value)
 
 
 class ResolutionView(BaseModel):
@@ -98,10 +109,20 @@ class ResolutionView(BaseModel):
     resolved_at: datetime | None
     auto_close_at: datetime | None
 
+    @field_validator("resolved_at", "auto_close_at", mode="after")
+    @classmethod
+    def datetimes_are_utc(cls, value: datetime | None) -> datetime | None:
+        return as_utc(value) if value is not None else None
+
 
 class ClosureView(BaseModel):
     type: str
     closed_at: datetime
+
+    @field_validator("closed_at", mode="after")
+    @classmethod
+    def closed_at_is_utc(cls, value: datetime) -> datetime:
+        return as_utc(value)
 
 
 class VendorRequestView(BaseModel):
@@ -111,6 +132,11 @@ class VendorRequestView(BaseModel):
     vendor_message: str = Field(max_length=4000)
     created_at: datetime
     responded_at: datetime | None
+
+    @field_validator("created_at", "responded_at", mode="after")
+    @classmethod
+    def datetimes_are_utc(cls, value: datetime | None) -> datetime | None:
+        return as_utc(value) if value is not None else None
 
 
 class TicketSummary(BaseModel):
@@ -125,6 +151,11 @@ class TicketSummary(BaseModel):
     available_actions: list[AvailableAction]
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("created_at", "updated_at", mode="after")
+    @classmethod
+    def datetimes_are_utc(cls, value: datetime) -> datetime:
+        return as_utc(value)
 
 
 class TicketDetail(TicketSummary):

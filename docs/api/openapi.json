@@ -4315,8 +4315,7 @@
         "properties": {
           "access_token": {
             "type": "string",
-            "description": "JWT.",
-            "writeOnly": true
+            "description": "JWT."
           },
           "token_type": {
             "type": "string",
