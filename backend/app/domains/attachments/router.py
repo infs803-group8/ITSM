@@ -118,6 +118,4 @@ def get_attachment_download(
     storage: Annotated[ObjectStorage, Depends(get_object_storage)],
     _request_id: Annotated[UUID | None, Depends(request_id_header)],
 ) -> DownloadResponse:
-    return AttachmentService(database, storage).create_download(
-        ticket_id, attachment_id, actor
-    )
+    return AttachmentService(database, storage).create_download(ticket_id, attachment_id, actor)

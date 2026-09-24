@@ -18,6 +18,51 @@ def _request_id(request: Request) -> str:
     return str(getattr(request.state, "request_id", uuid4()))
 
 
+def _classify_validation_error(errors: list[dict], *, path: str) -> tuple[int, str, str]:
+    """Map a FastAPI/pydantic ``RequestValidationError``'s ``.errors()``
+    list to this API's own contract-shaped (status, ErrorCode, message)
+    triple, instead of always falling back to the generic
+    ``VALIDATION_ERROR``.
+
+    Pulled out of ``validation_error_handler`` as its own plain function
+    (C035-fix) purely so it can be unit-tested directly -- with no
+    ``Request``/``RequestValidationError``/FastAPI app object needed --
+    rather than only through an HTTP-level contract test. Behaviour is
+    unchanged from the inline version this replaces.
+    """
+    size_too_large = any(
+        error.get("type") == "less_than_equal" and error.get("loc", ())[-1:] == ("size_bytes",)
+        for error in errors
+    )
+    unsupported_content_type = any(
+        error.get("type") == "enum" and error.get("loc", ())[-1:] == ("content_type",)
+        for error in errors
+    )
+    missing_or_false_close_acknowledgement = path.endswith("/close") and any(
+        error.get("loc", ())[-1:] == ("acknowledge",)
+        and error.get("type") in {"missing", "literal_error", "bool_parsing", "bool_type"}
+        for error in errors
+    )
+    if size_too_large:
+        return 413, "ATTACHMENT_TOO_LARGE", "The attachment exceeds the 10 MiB limit."
+    if unsupported_content_type:
+        return 422, "UNSUPPORTED_ATTACHMENT_TYPE", "The attachment content type is not supported."
+    if missing_or_false_close_acknowledgement:
+        # C034.02 / Q07: a missing or false ``acknowledge`` on
+        # POST /tickets/{id}/close must surface as this specific code,
+        # not be swallowed by the generic VALIDATION_ERROR fallback --
+        # same precedent as the two attachment-specific branches above.
+        # Path-scoped (unlike those two) purely as an extra safety
+        # margin, since "acknowledge" is currently unique to
+        # CloseRequest but a future schema could reuse the field name.
+        return (
+            422,
+            "CLOSE_ACKNOWLEDGEMENT_REQUIRED",
+            "Acknowledgement is required to close this ticket.",
+        )
+    return 422, "VALIDATION_ERROR", "The request did not pass validation."
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApplicationError)
     async def application_error_handler(_request: Request, exc: ApplicationError) -> JSONResponse:
@@ -37,34 +82,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         exc: RequestValidationError,
     ) -> JSONResponse:
         errors = exc.errors()
-        size_too_large = any(
-            error.get("type") == "less_than_equal"
-            and error.get("loc", ())[-1:] == ("size_bytes",)
-            for error in errors
-        )
-        unsupported_content_type = any(
-            error.get("type") == "enum"
-            and error.get("loc", ())[-1:] == ("content_type",)
-            for error in errors
-        )
-        if size_too_large:
-            status_code, code, message = (
-                413,
-                "ATTACHMENT_TOO_LARGE",
-                "The attachment exceeds the 10 MiB limit.",
-            )
-        elif unsupported_content_type:
-            status_code, code, message = (
-                422,
-                "UNSUPPORTED_ATTACHMENT_TYPE",
-                "The attachment content type is not supported.",
-            )
-        else:
-            status_code, code, message = (
-                422,
-                "VALIDATION_ERROR",
-                "The request did not pass validation.",
-            )
+        status_code, code, message = _classify_validation_error(errors, path=request.url.path)
         fields = [
             {
                 "field": ".".join(str(part) for part in error.get("loc", ())),

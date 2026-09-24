@@ -29,10 +29,13 @@ def s3_settings(monkeypatch):
 
 def test_presigned_put_uses_custom_domain_and_sigv4():
     storage = S3ObjectStorage()
-    result = urlsplit(storage.create_upload_url(
-        object_key="attachments/pending/42/upload-id",
-        content_type="text/plain", expires_in=300,
-    ))
+    result = urlsplit(
+        storage.create_upload_url(
+            object_key="attachments/pending/42/upload-id",
+            content_type="text/plain",
+            expires_in=300,
+        )
+    )
     query = parse_qs(result.query)
     assert result.scheme == "https"
     assert result.netloc == "s3.infs803-group8.com"
@@ -44,10 +47,14 @@ def test_presigned_put_uses_custom_domain_and_sigv4():
 
 
 def test_presigned_download_keeps_filename_response_parameters():
-    result = urlsplit(S3ObjectStorage().create_download_url(
-        object_key="attachments/a b+%.txt", file_name="network log.txt",
-        content_type="text/plain", expires_in=60,
-    ))
+    result = urlsplit(
+        S3ObjectStorage().create_download_url(
+            object_key="attachments/a b+%.txt",
+            file_name="network log.txt",
+            content_type="text/plain",
+            expires_in=60,
+        )
+    )
     query = parse_qs(result.query)
     assert result.netloc == "s3.infs803-group8.com"
     assert result.path == "/attachments/a%20b%2B%25.txt"
@@ -65,7 +72,8 @@ def test_adapter_preserves_exact_encoded_path_and_signature_query():
     rewritten = S3ObjectStorage()._browser_url(signed)
     assert rewritten == signed.replace(
         "https://bucket.s3.ap-southeast-2.amazonaws.com",
-        "https://s3.infs803-group8.com", 1,
+        "https://s3.infs803-group8.com",
+        1,
     )
 
 
@@ -73,18 +81,27 @@ def test_omitting_public_domain_preserves_regional_s3_host(monkeypatch):
     monkeypatch.setenv("S3_PUBLIC_BASE_URL", "")
     get_settings.cache_clear()
     storage = S3ObjectStorage()
-    result = urlsplit(storage.create_upload_url(
-        object_key="attachments/test", content_type="text/plain", expires_in=60,
-    ))
+    result = urlsplit(
+        storage.create_upload_url(
+            object_key="attachments/test",
+            content_type="text/plain",
+            expires_in=60,
+        )
+    )
     assert result.netloc == (
         "infs803-group8-dev-attachments-256329410824.s3.ap-southeast-2.amazonaws.com"
     )
 
 
-@pytest.mark.parametrize("base_url", [
-    "http://s3.infs803-group8.com", "https://s3.infs803-group8.com/path",
-    "https://user:password@s3.infs803-group8.com", "https://s3.infs803-group8.com/?x=1",
-])
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://s3.infs803-group8.com",
+        "https://s3.infs803-group8.com/path",
+        "https://user:password@s3.infs803-group8.com",
+        "https://s3.infs803-group8.com/?x=1",
+    ],
+)
 def test_invalid_public_origin_is_rejected(monkeypatch, base_url):
     monkeypatch.setenv("S3_PUBLIC_BASE_URL", base_url)
     get_settings.cache_clear()

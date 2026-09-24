@@ -31,9 +31,10 @@ class AttachmentRepository:
         for_update: bool = False,
     ) -> TicketAccessRecord | None:
         lock = " FOR UPDATE" if for_update else ""
-        row = self.database.execute(
-            text(
-                """
+        row = (
+            self.database.execute(
+                text(
+                    """
                 SELECT t.ticket_id, t.requester_id, t.assignee_id, t.status_code,
                        active_vr.vendor_request_id AS active_vendor_request_id,
                        active_vr.vendor_org_id AS active_vendor_org_id,
@@ -47,10 +48,13 @@ class AttachmentRepository:
                   ON active_vr.ticket_id = t.ticket_id AND active_vr.status = 'ACTIVE'
                 WHERE t.ticket_id = :ticket_id
                 """
-                + lock
-            ),
-            {"ticket_id": ticket_id, "actor_vendor_org_id": actor.vendor_org_id or 0},
-        ).mappings().one_or_none()
+                    + lock
+                ),
+                {"ticket_id": ticket_id, "actor_vendor_org_id": actor.vendor_org_id or 0},
+            )
+            .mappings()
+            .one_or_none()
+        )
         if row is None:
             return None
         return TicketAccessRecord(
@@ -72,15 +76,19 @@ class AttachmentRepository:
         )
 
     def get_config(self) -> AttachmentConfigRecord:
-        row = self.database.execute(
-            text(
-                """
+        row = (
+            self.database.execute(
+                text(
+                    """
                 SELECT attachment_max_size_bytes, upload_url_ttl_seconds,
                        download_url_ttl_seconds
                 FROM service_config WHERE config_id = 1
                 """
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         return AttachmentConfigRecord(
             max_size_bytes=int(row["attachment_max_size_bytes"]),
             upload_ttl_seconds=int(row["upload_url_ttl_seconds"]),
@@ -88,15 +96,18 @@ class AttachmentRepository:
         )
 
     def is_type_allowed(self, extension: str, content_type: str) -> bool:
-        return self.database.execute(
-            text(
-                """
+        return (
+            self.database.execute(
+                text(
+                    """
                 SELECT 1 FROM allowed_attachment_types
                 WHERE extension = :extension AND content_type = :content_type AND is_active = 1
                 """
-            ),
-            {"extension": extension, "content_type": content_type},
-        ).scalar_one_or_none() is not None
+                ),
+                {"extension": extension, "content_type": content_type},
+            ).scalar_one_or_none()
+            is not None
+        )
 
     def add_upload(self, upload: AttachmentUpload) -> None:
         self.database.add(upload)
@@ -214,20 +225,23 @@ class AttachmentRepository:
     def vendor_binding_is_active(self, upload: AttachmentUpload) -> bool:
         if upload.vendor_request_id is None or upload.vendor_org_id is None:
             return False
-        return self.database.execute(
-            text(
-                """
+        return (
+            self.database.execute(
+                text(
+                    """
                 SELECT 1 FROM vendor_requests
                 WHERE vendor_request_id = :vendor_request_id AND ticket_id = :ticket_id
                   AND vendor_org_id = :vendor_org_id AND status = 'ACTIVE'
                 """
-            ),
-            {
-                "vendor_request_id": upload.vendor_request_id,
-                "ticket_id": upload.ticket_id,
-                "vendor_org_id": upload.vendor_org_id,
-            },
-        ).scalar_one_or_none() is not None
+                ),
+                {
+                    "vendor_request_id": upload.vendor_request_id,
+                    "ticket_id": upload.ticket_id,
+                    "vendor_org_id": upload.vendor_org_id,
+                },
+            ).scalar_one_or_none()
+            is not None
+        )
 
     def get_cleanup_candidates(
         self, now: datetime, limit: int, *, after_upload_id: str = ""
@@ -247,7 +261,7 @@ class AttachmentRepository:
                             AttachmentUploadStatus.EXPIRED.value,
                             AttachmentUploadStatus.ABORTED.value,
                         ]
-                    )
+                    ),
                 )
                 .order_by(AttachmentUpload.upload_id)
                 .limit(limit)
