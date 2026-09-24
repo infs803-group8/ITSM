@@ -19,6 +19,7 @@ from app.domains.dashboard.service import DashboardService
 
 router = APIRouter(tags=["Dashboard"])
 
+
 def error_responses(*status_codes: int) -> dict[int, dict[str, object]]:
     return {code: {"model": ErrorResponse} for code in status_codes}
 

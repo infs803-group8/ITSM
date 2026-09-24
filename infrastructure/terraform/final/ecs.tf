@@ -3,4 +3,4 @@ resource "aws_ecs_cluster" "main" {
 }
 
 # tasks.tf creates idle services and complete task definitions. The release
-# workflow updates their immutable image revisions after database bootstrap.
+# script updates their immutable image revisions after database bootstrap.

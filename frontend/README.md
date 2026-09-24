@@ -6,9 +6,9 @@ React + TypeScript + Vite application owned by member D. The source of truth for
 
 Run the following **inside the team's `ITSM/frontend` directory**, not the older standalone prototype. The selected local runtime is **Node.js 22.23.3** (recorded in `.nvmrc`). With jsdom 30, Node 22 must be **22.22.2 or newer**; the old Node 22.19.0 installation is not supported by that dependency. `engines.node` records the supported Node release ranges.
 
-The shared dependency ranges match main at `5ff9efb`: Vite 8.2.2, React plugin 6.1.1, Vitest 5.0.1, jsdom 30.0.1 and jest-dom 7.0.1 are the lockfile baseline. D01 keeps its additional generator, validation packages and test scripts. `@types/node` is separately pinned to 22.19.0 to satisfy Vite 8's type-package requirement; its version is not the installed Node runtime version.
+The shared dependency ranges and all 16 shared direct dependency versions match main at `6736508`: Vite 8.2.2, React plugin 6.1.1, Vitest 5.0.1, jsdom 30.0.1 and jest-dom 7.0.1 are the lockfile baseline. D01 keeps its additional generator, validation packages and test scripts. `@types/node` is separately pinned to 22.19.0 to satisfy Vite 8's type-package requirement; its version is not the installed Node runtime version.
 
-Use `npm ci` to reproduce the committed lockfile. The `^` ranges inherited from main are not an instruction to upgrade dependencies on every checkout. Review intentional dependency upgrades separately. This version-alignment change does **not** merge main's backend, API contract or workflow changes into D01.
+Use `npm ci` to reproduce the committed lockfile. The `^` ranges inherited from main are not an instruction to upgrade dependencies on every checkout. Review intentional dependency upgrades separately. D01 now incorporates main at `6736508`, including the team's backend fixes, contract updates and GitHub Actions removal. D01's own changes remain frontend-only; do not overwrite the merged backend or contract with older branch files.
 
 ```powershell
 npm ci
@@ -46,7 +46,7 @@ npm run api:check
 - Line endings are normalized for Windows/Linux reproducibility. The contract-hash test detects source changes whenever the unit suite runs. Full generated-file drift is checked by `npm run api:check`.
 - Run generation from the full repository. The production Docker build uses the committed generated files; it does not need the parent `docs` directory in its frontend-only build context.
 
-**Known contract annotation:** v1.1 `LoginData.access_token` is both required in a login response and marked `writeOnly`. The generator's read/write splitting is explicitly disabled so the required token is retained. This preserves the declared schema fields without rewriting the team contract. Revisit this setting with member B when the annotation is corrected. A type test protects the token and password fields.
+**Resolved contract annotation:** main removed the incorrect `writeOnly` flag from `LoginData.access_token`. The old `readWrite: false` workaround has been removed; generation now uses the default read/write handling. The response token remains required. Passwords legitimately remain write-only, so the generated SDK uses `RegisterRequestWritable` and `LoginRequestWritable` for request bodies. `src/api/types.ts` exposes convenient `RegisterRequest` and `LoginRequest` aliases derived directly from the generated operations' `body` types; import those aliases for forms and authentication rather than the read-view names in `types.gen.ts`. Contract, type and request tests protect both token and password fields.
 
 Generator documentation: [Axios runtime configuration](https://heyapi.dev/docs/openapi/typescript/clients/axios), [generated output](https://heyapi.dev/docs/openapi/typescript/output).
 
@@ -80,6 +80,12 @@ Tokens live **only in memory** (`tokenStorage.ts`); page reload requires sign-in
 
 For future S3 uploads, use the returned presigned URL and signed headers with a separate request (for example native `fetch`); never send the API bearer token to S3.
 
+### Tier 1 escalation and detail-page scope
+
+API-25's success example now has `data.ticket.available_actions: []`: a Tier 1 caller loses access to the ticket after escalating it to Tier 2. The action can succeed with HTTP 200 while a later API-17 GET by the same caller returns 404. Do not recreate START/COMMENT/UPLOAD_ATTACHMENT actions from the ticket status.
+
+The future detail page should leave the detail view after successful escalation, invalidate/remove the old detail cache and refresh the list. A detail-page 404 should show a neutral unavailable/no-access message and return to the list; it must not log the user out or trigger a global redirect for every API's 404. D01 preserves the empty actions and normalized 404 without clearing the token, with a test-only SDK/MSW regression. It does not implement the page navigation or a complete Tier 1 Mock workflow.
+
 ## Mock mode and its limits
 
 In your local `.env`:
@@ -112,7 +118,7 @@ Set `VITE_USE_MOCKS=false` to call the Python backend. Confirm backend routes, c
 
 ## Checks before your manual PR
 
-The latest main removed GitHub Actions checks. D01 has not merged that commit in this dependency-only update, so do not rely on the older workflow files still visible on this branch as evidence that the team's PR checks are active. Run these checks locally before your manual PR.
+The merged main removed GitHub Actions checks, so run these checks locally before your manual PR; there are no active repository workflow checks to rely on.
 
 ```powershell
 npm run check
@@ -121,12 +127,14 @@ npm run test:api:browser
 
 `check` verifies generated-file drift, TypeScript, Vitest tests, and the production build. It no longer permits a false green result with zero unit tests. The browser check launches its own development server on `127.0.0.1:5181` with Mock enabled and shuts it down afterward. If Chromium is missing, install it once with `npx playwright install chromium`.
 
-- `tests/api/contract.test.ts`: all 32 success examples, generation hash, nine fixtures and important generated types.
-- `tests/api/client.test.ts`: actual generated SDK → Axios → MSW requests, token behavior, validation, errors, query parameters and USER isolation.
+- `tests/api/contract.test.ts`: all 32 success examples, generation hash, nine fixtures, readable login token, empty post-escalation actions and important generated types.
+- `tests/api/client.test.ts`: actual generated SDK → Axios → MSW requests, token behavior, validation, errors, query parameters, USER isolation and test-only escalation-success/detail-404 handling.
 - `tests/api/errorHandler.test.ts`: HTTP, network, timeout, cancellation and production Mock guard.
 - `tests/component/ApiErrorNotice.test.tsx`: accessible message/request ID, retry click, no raw details.
 - `tests/api-browser/api-foundation.spec.ts`: two real Chromium/Service Worker checks; not full user-page flows.
 
 The four original `tests/e2e` business scenarios remain skipped placeholders. `npm run test:e2e` is not a completed business-flow acceptance suite yet. No backend integration, Docker deployment or S3 upload is claimed by these Mock tests.
+
+After the 2026-09-24 main sync, generated-file checks, TypeScript, all **69 unit/component tests**, both browser tests and the production build passed. Full and production-only npm audits reported 0 known vulnerabilities. The merged backend's 403 unit/contract tests also passed using an existing isolated Python environment, with one test-library deprecation warning; no real database or AWS tests were run.
 
 See `D01-HANDOFF.md` for the Chinese change summary and next development steps.

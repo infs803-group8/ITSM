@@ -5,9 +5,9 @@ import { setupServer } from "msw/node";
 import {
   api01Health, api06DashboardSummary, api08Register, api09Login, api10GetMyProfile,
   api11UpdateMyProfile, api12ReferenceData, api15CreateTicket, api16ListTickets,
-  api17GetTicket, api22StartTicket,
+  api17GetTicket, api22StartTicket, api25EscalateTicket,
 } from "../../src/api/generated/sdk.gen";
-import type { RegisterRequest, TicketCreateRequest } from "../../src/api/generated/types.gen";
+import type { RegisterRequest, TicketCreateRequest } from "../../src/api/types";
 import { login, logout } from "../../src/api/auth";
 import { tokenStorage } from "../../src/api/tokenStorage";
 import { onUnauthorized } from "../../src/api/httpClient";
@@ -173,6 +173,31 @@ describe("generated SDK through the real Axios + MSW boundary", () => {
     expect(result.data.data.ticket.status).toBe("IN_PROGRESS");
     expect(result.data.data.comment_id).toBeNull();
     assertResponse("api22StartTicket", 200, result.data);
+  });
+
+  it("preserves escalation's empty actions and exposes a later detail 404 without logging out", async () => {
+    // Test-only responses model the Tier 1 scope transition, not a new baseline Mock role.
+    const token = "test-only-tier1-token";
+    tokenStorage.set(token);
+    const listener = vi.fn();
+    const unsubscribe = onUnauthorized(listener);
+    server.use(http.post(mockApiUrl("/tickets/:id/escalate"), () =>
+      HttpResponse.json(successExample("api25EscalateTicket"))));
+    try {
+      const result = await api25EscalateTicket({ path: { id: 5001 }, body: { tier2_assignee_id: 2002 } });
+      expect(result.status).toBe(200);
+      expect(result.data.data.ticket.available_actions).toEqual([]);
+      expect(requests.at(-1)!.headers.get("Authorization")).toBe(`Bearer ${token}`);
+      assertResponse("api25EscalateTicket", 200, result.data);
+
+      // The caller is no longer in the ticket's scope after escalation succeeds.
+      server.use(http.get(mockApiUrl("/tickets/:id"), ({ request }) =>
+        mockError(request, 404, "RESOURCE_NOT_FOUND", "The requested resource was not found.")));
+      await expect(api17GetTicket({ path: { id: result.data.data.ticket.ticket_id } }))
+        .rejects.toMatchObject({ kind: "http", status: 404, code: "RESOURCE_NOT_FOUND", requestId: expect.any(String) });
+      expect(tokenStorage.get()).toBe(token);
+      expect(listener).not.toHaveBeenCalled();
+    } finally { unsubscribe(); }
   });
 
   it("fails unsupported mock operations locally instead of falling through to the backend", async () => {

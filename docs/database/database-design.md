@@ -547,7 +547,7 @@ COMMIT
 1. 每位 Backend 成员安装 MySQL 8.0/8.4，并使用自己的本地账号。
 2. 把经过 Review 的 `IT-Service-Desk-MySQL-Schema-v1.0.sql` 放入 Repository 的 `backend/database/schema.sql`，在空实例执行该 Canonical 文件，创建完整 `service_desk`。
 3. Backend `.env` 只保存本人的 Connection String，不提交 Git。
-4. A/B/C 使用相同 SQLAlchemy Model Registry；不得只导入自己的 Domain Model；Model 必须通过 CI Schema Drift Test 与 Canonical SQL 比较。
+4. A/B/C 使用相同 SQLAlchemy Model Registry；不得只导入自己的 Domain Model；Model 必须通过本地 Schema Drift Test 与 Canonical SQL 比较。
 5. 修改结构时，Domain Owner 先修改 Model 和本设计，B Review 外键、索引和空库创建结果。
 6. Feature 阶段允许重建自己的本地空库，但不得把个人 SQL Dump 合并成 Final Schema。
 
@@ -576,7 +576,7 @@ Canonical SQL 是唯一可执行结构来源；本文是字段说明；SQLAlchem
 - Enum/Reference Code 必须与 API OpenAPI Enum 一致。
 - `model_registry.py` 必须导入 19 张表对应的全部 Model。
 - `bootstrap.py` 必须对 Empty Database 应用 Canonical SQL，禁止通过 `Base.metadata.create_all()` 建立另一套结构。
-- CI 必须在新的空 MySQL Database 中执行完整 Bootstrap、Constraint Test 和 SQLAlchemy Metadata/Information Schema Drift Comparison。
+- 本地验证必须在新的空 MySQL Database 中执行完整 Bootstrap、Constraint Test 和 SQLAlchemy Metadata/Information Schema Drift Comparison。
 - 运行中 FastAPI OpenAPI 与数据库字段的区别要保持清晰：Database 可保存 Password Hash、Object Key 等内部字段，但 Response Model 不得返回这些字段。
 
 ## 14. Schema Freeze 规则

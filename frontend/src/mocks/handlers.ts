@@ -3,7 +3,7 @@ import type {
   ErrorBody, ErrorCode, ErrorResponse, LoginRequest, LoginResponse, RegisterRequest,
   TicketCreateRequest, TicketDetail, TicketDetailResponse, TicketListResponse,
   TicketSummary, UpdateProfileRequest, UserProfile, UserResponse,
-} from "../api/generated/types.gen";
+} from "../api/types";
 import { apiBaseUrl } from "../api/config";
 import fixtures from "./fixtures.generated.json";
 import { mockState } from "./state";

@@ -4,10 +4,10 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import * as sdk from "../../src/api/generated/sdk.gen";
-import type { LoginData, LoginRequest, TicketActionResponse, TicketCreateRequest, TicketDetail } from "../../src/api/generated/types.gen";
+import type { Api08RegisterData, Api09LoginData, LoginData, LoginRequest, RegisterRequest, TicketActionResponse, TicketCreateRequest, TicketDetail } from "../../src/api/types";
 import fixtures from "../../src/mocks/fixtures.generated.json";
 import manifest from "../../src/api/generated/contract-manifest.json";
-import { operations, assertResponse, successExample } from "./contract";
+import { contract, operations, assertResponse, successExample } from "./contract";
 
 describe("generated API / source contract alignment", () => {
   it("detects a contract change that has not been regenerated", () => {
@@ -32,9 +32,26 @@ describe("generated API / source contract alignment", () => {
     }
   });
 
+  it("keeps the login token required and readable in the source contract", () => {
+    const schema = contract.components.schemas.LoginData;
+    expect(schema.required).toContain("access_token");
+    expect(schema.properties.access_token.writeOnly).not.toBe(true);
+    expect(successExample("api09Login").data.access_token).toEqual(expect.any(String));
+  });
+
+  it("does not advertise further Tier 1 actions after escalation", () => {
+    const response = successExample("api25EscalateTicket");
+    expect(response.data.action).toBe("ESCALATE");
+    expect(response.data.ticket.assignee.tier).toBe("TIER2");
+    expect(response.data.ticket.available_actions).toEqual([]);
+  });
+
   it("preserves token/password, numeric IDs, nullable fields and workflow nesting in types", () => {
     expectTypeOf<LoginData["access_token"]>().toEqualTypeOf<string>();
     expectTypeOf<LoginRequest["password"]>().toEqualTypeOf<string>();
+    expectTypeOf<RegisterRequest["password"]>().toEqualTypeOf<string>();
+    expectTypeOf<LoginRequest>().toEqualTypeOf<Api09LoginData["body"]>();
+    expectTypeOf<RegisterRequest>().toEqualTypeOf<Api08RegisterData["body"]>();
     expectTypeOf<TicketDetail["ticket_id"]>().toEqualTypeOf<number>();
     expectTypeOf<TicketDetail["vendor_request"]>().toBeNullable();
     expectTypeOf<TicketActionResponse["data"]["ticket"]>().toEqualTypeOf<TicketDetail>();

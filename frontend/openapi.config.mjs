@@ -8,9 +8,8 @@ export const contractPath = path.resolve(frontendRoot, "../docs/api/openapi.yaml
 export function generatorConfig(outputRoot = frontendRoot) {
   return {
     input: contractPath,
-    // v1.1 marks LoginData.access_token both required in responses and writeOnly.
-    // Preserve declared fields until the contract owner resolves that annotation.
-    parser: { transforms: { readWrite: false } },
+    // The contract now exposes LoginData.access_token as a response field.
+    // Use the generator's default read/write handling; regression tests protect it.
     output: {
       path: path.join(outputRoot, "src/api/generated"),
     },

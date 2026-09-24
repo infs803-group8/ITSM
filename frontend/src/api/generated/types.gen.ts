@@ -202,10 +202,6 @@ export type RegisterRequest = {
      */
     email: string;
     /**
-     * Password; write-only.
-     */
-    password: string;
-    /**
      * Display name.
      */
     display_name: string;
@@ -216,10 +212,6 @@ export type LoginRequest = {
      * Registered email.
      */
     email: string;
-    /**
-     * Password.
-     */
-    password: string;
 };
 
 export type LoginData = {
@@ -1012,6 +1004,32 @@ export type EventListResponse = {
  */
 export type EventType = 'TICKET_CREATED' | 'AUTO_ASSIGNED' | 'ASSIGNED' | 'REASSIGNED' | 'HANDLING_STARTED' | 'COMMENT_ADDED' | 'SLA_CYCLE_STARTED' | 'SLA_PAUSED' | 'SLA_AT_RISK' | 'SLA_OVERDUE' | 'SLA_MET' | 'USER_INFO_REQUESTED' | 'USER_RESUMED' | 'VENDOR_REQUESTED' | 'VENDOR_RESPONDED' | 'VENDOR_CANCELLED' | 'RESOLUTION_SUBMITTED' | 'RESOLUTION_CONFIRMED' | 'AUTO_RESOLVED_NO_USER_RESPONSE' | 'RESOLUTION_CONFIRMATION_TIMEOUT' | 'TICKET_REOPENED' | 'TICKET_CLOSED_MANUAL' | 'TICKET_CLOSED_AUTO' | 'ATTACHMENT_ADDED';
 
+export type RegisterRequestWritable = {
+    /**
+     * Unique email.
+     */
+    email: string;
+    /**
+     * Password; write-only.
+     */
+    password: string;
+    /**
+     * Display name.
+     */
+    display_name: string;
+};
+
+export type LoginRequestWritable = {
+    /**
+     * Registered email.
+     */
+    email: string;
+    /**
+     * Password.
+     */
+    password: string;
+};
+
 /**
  * Optional UUID correlation ID; server generates one if absent.
  */
@@ -1406,7 +1424,7 @@ export type Api08RegisterData = {
     /**
      * JSON request body; additional fields are rejected.
      */
-    body: RegisterRequest;
+    body: RegisterRequestWritable;
     headers?: {
         /**
          * Optional UUID correlation ID; server generates one if absent.
@@ -1452,7 +1470,7 @@ export type Api09LoginData = {
     /**
      * JSON request body; additional fields are rejected.
      */
-    body: LoginRequest;
+    body: LoginRequestWritable;
     headers?: {
         /**
          * Optional UUID correlation ID; server generates one if absent.

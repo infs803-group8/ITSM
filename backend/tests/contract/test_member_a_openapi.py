@@ -11,9 +11,7 @@ EXPECTED = {
     "/api/v1/tickets/{id}/attachments/presign": "api02CreateAttachmentUpload",
     "/api/v1/tickets/{id}/attachments/complete": "api03CompleteAttachmentUpload",
     "/api/v1/tickets/{id}/attachments": "api04ListAttachments",
-    "/api/v1/tickets/{id}/attachments/{attachment_id}/download": (
-        "api05GetAttachmentDownload"
-    ),
+    "/api/v1/tickets/{id}/attachments/{attachment_id}/download": ("api05GetAttachmentDownload"),
     "/api/v1/dashboard/summary": "api06DashboardSummary",
     "/api/v1/dashboard/overdue-tickets": "api07OverdueTickets",
 }
@@ -31,8 +29,7 @@ def test_member_a_runtime_routes_match_frozen_operation_ids():
         path: operation["operationId"]
         for path, methods in paths.items()
         for operation in methods.values()
-        if isinstance(operation, dict)
-        and operation.get("operationId") in EXPECTED.values()
+        if isinstance(operation, dict) and operation.get("operationId") in EXPECTED.values()
     }
     assert actual == EXPECTED
 

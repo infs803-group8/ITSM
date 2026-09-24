@@ -1,5 +1,5 @@
 import { api09Login } from "./generated/sdk.gen";
-import type { LoginData, LoginRequest } from "./generated/types.gen";
+import type { LoginData, LoginRequest } from "./types";
 import { tokenStorage } from "./tokenStorage";
 
 export async function login(credentials: LoginRequest): Promise<LoginData> {

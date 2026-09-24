@@ -73,7 +73,7 @@
           "System"
         ],
         "summary": "Backend health check",
-        "description": "Checks backend version and database readiness; used by ALB and CI/CD smoke tests.\n\nAccess: Public. Owner: Member A.",
+        "description": "Checks backend version and database readiness; used by ALB and deployment smoke tests.\n\nAccess: Public. Owner: Member A.",
         "operationId": "api01Health",
         "x-api-id": "API-01",
         "x-owner": "A",
@@ -3184,11 +3184,7 @@
               "resolution": null,
               "closure": null,
               "vendor_request": null,
-              "available_actions": [
-                "START",
-                "COMMENT",
-                "UPLOAD_ATTACHMENT"
-              ],
+              "available_actions": [],
               "created_at": "2026-09-01T01:00:00Z",
               "updated_at": "2026-09-01T03:20:15Z"
             },
@@ -4315,8 +4311,7 @@
         "properties": {
           "access_token": {
             "type": "string",
-            "description": "JWT.",
-            "writeOnly": true
+            "description": "JWT."
           },
           "token_type": {
             "type": "string",

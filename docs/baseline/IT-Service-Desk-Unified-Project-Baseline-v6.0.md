@@ -33,14 +33,14 @@
 | Frontend | React、TypeScript、Vite、Ant Design、React Router、Axios |
 | Backend | Python、FastAPI、Uvicorn、SQLAlchemy、PyMySQL |
 | Database | Database Name 统一为 `service_desk`；Feature 阶段 A/B/C 各自使用独立本地 MySQL 8.4 Instance；Final 阶段使用 Amazon RDS for MySQL 8.4 |
-| Database Initialisation | `backend/database/schema.sql` 是唯一可执行 Schema Contract；本地和 RDS 空库执行同一文件创建完整 19 张表；SQLAlchemy Models 必须逐字段匹配；CI 执行 Schema Drift Verification |
+| Database Initialisation | `backend/database/schema.sql` 是唯一可执行 Schema Contract；本地和 RDS 空库执行同一文件创建完整 19 张表；SQLAlchemy Models 必须逐字段匹配；本地执行 Schema Drift Verification |
 | File Storage | Private Amazon S3；Browser 使用 Presigned PUT，Backend 使用 `HeadObject` 验证 |
 | Compute | Amazon ECS on AWS Fargate；Frontend、Backend 使用独立 ECS Services |
 | Public Entry | CloudFront 默认 HTTPS Domain → Internet-facing ALB；`/api/*` 转 Backend，其余路径转 Frontend |
 | Background Jobs | EventBridge Scheduler 启动短期 ECS Tasks；SLA Job 与 Attachment Cleanup Job 分开运行 |
 | Registry / Logs | Amazon ECR、CloudWatch Logs |
-| Secrets / AWS Auth | AWS Secrets Manager 保存 DB/JWT Secret；GitHub Actions 使用 OIDC AssumeRole，不保存长期 AWS Key |
-| CI/CD | GitHub Actions；部署配置、Task Definition 和 Runbook 进入 Git |
+| Secrets / AWS Auth | AWS Secrets Manager 保存 DB/JWT Secret；手动部署使用本地配置的授权 AWS 身份，凭证不进入 Git |
+| Deployment | 手动部署；部署配置、Task Definition 和 Runbook 进入 Git |
 | Infrastructure as Code | Terraform；`dev-storage` 只创建开发 S3，`final` 创建最终 AWS Infrastructure |
 | Repository | GitHub Monorepo；3 人 Backend、1 人 Frontend |
 | Project Manager | 成员 C；负责协调与证据检查，不代替各 Owner 更新任务或完成测试 |
@@ -370,7 +370,7 @@ flowchart LR
     CLEAN --> S3
     SLA --> SM
     CLEAN --> SM
-    GH[GitHub Actions] --> ECR[ECR]
+    MANUAL[Manual deployment] --> ECR[ECR]
     ECR --> FE
     ECR --> BE
     FE --> CW[CloudWatch Logs]
@@ -384,7 +384,7 @@ flowchart LR
 - `sla_monitor` 每 5 分钟检查 AT_RISK、OVERDUE、Pending User Deadline 和 Auto Close；`attachment_cleanup` 每 30 分钟处理过期 Upload Session 和 Orphan Object。两者均可安全重跑。
 - RDS 最终为 Private，只允许 Backend/Scheduled Task Security Groups。S3 Block Public Access、默认加密和 CORS Allowlist 保持开启。
 - 为降低 MVP 成本，ALB 和 ECS Tasks 使用 Public Subnets；ECS 可有 Public IP 供出站访问 AWS Services，但 Security Group 只接受 ALB SG 的应用端口，Scheduled Tasks 不开放入站。RDS 位于 Private DB Subnets 且不分配 Public IP。
-- ECS Task Role 只访问所需 S3 Prefix、Logs 和 Secrets；GitHub 通过 OIDC 部署，Frontend/Browser 不持有 AWS Access Key。Presigned URL 只允许单个 object_key 和短 TTL。
+- ECS Task Role 只访问所需 S3 Prefix、Logs 和 Secrets；使用授权 AWS 身份手动部署，Frontend/Browser 不持有 AWS Access Key。Presigned URL 只允许单个 object_key 和短 TTL。
 
 ### 6.2 本地开发与开发期 AWS 边界
 
@@ -401,7 +401,7 @@ flowchart LR
 
 ### 6.3 Final Database Bootstrap、发布顺序与回滚
 
-1. M4 完成 Schema Freeze；CI 在全新 MySQL 8.4 空库实际执行 `backend/database/schema.sql`，验证 19 张表、35 个 Foreign Key、关键 Unique/CHECK、两个 Audit Trigger、Reference Data、SQLAlchemy Mapping、API Tests 和 Docker Build，并生成 immutable Backend/Frontend Image Tag（commit SHA）。
+1. M4 完成 Schema Freeze；本地验证在全新 MySQL 8.4 空库实际执行 `backend/database/schema.sql`，验证 19 张表、35 个 Foreign Key、关键 Unique/CHECK、两个 Audit Trigger、Reference Data、SQLAlchemy Mapping、API Tests 和 Docker Build，并生成 immutable Backend/Frontend Image Tag（commit SHA）。
 2. A 创建 Final AWS Infrastructure，包括 Empty Private RDS、Final Private S3、ECR、ECS、ALB、CloudFront、Secrets、Logs 和 Scheduler；RDS Database Name 同样使用 `service_desk`。
 3. A 使用相同 Backend Image 启动一次性 Database Bootstrap ECS Task，执行 `python -m app.db.bootstrap`，由该 Task 对 Empty RDS 应用同一份 Canonical SQL；随后执行幂等 `python -m app.db.seed` 验证 Reference Data。B 核对 Task Log、Schema Version、表、索引、外键、CHECK、Trigger 和 Schema Drift 结果。禁止在每个 Backend Web Container 启动时自动建表。
 4. A 部署 Backend Task Definition，等待 Health Check，通过 Direct API Smoke Tests。
@@ -426,9 +426,9 @@ flowchart LR
 
 | 成员 | 主责域与交付物 | 公共 API | 不负责 / 边界 |
 |---|---|---:|---|
-| A | Platform、AttachmentUpload/Attachment、Dashboard、AWS、CI/CD、Runbook；Storage/Cloud Tests | 01–07（7） | 不实现 Ticket Workflow、User/Auth 或 Frontend 页面 |
+| A | Platform、AttachmentUpload/Attachment、Dashboard、AWS、Runbook；Storage/Cloud Tests | 01–07（7） | 不实现 Ticket Workflow、User/Auth 或 Frontend 页面 |
 | B | Auth/User、Ticket Core、Comment、Reference Data、Access Scope；Core Tests；Database Schema Coordinator，维护 Model Registry/Bootstrap/Seed Review | 08–20（13） | 不替 A/C 编写 Domain Model；不兼任全组 Test Lead |
-| C | Assignment、Workflow、Vendor、SLA、TicketEvent/Audit、Background SLA Task；Workflow Tests；Project Coordination | 21–32（12） | 不维护 Attachment Storage、Frontend 或 AWS Release Pipeline |
+| C | Assignment、Workflow、Vendor、SLA、TicketEvent/Audit、Background SLA Task；Workflow Tests；Project Coordination | 21–32（12） | 不维护 Attachment Storage、Frontend 或 AWS Release Scripts |
 | D | 全部 Frontend 页面、Typed API Client、Frontend Container/Nginx、Component/E2E/Manual Tests | 无 Backend API | 不直接访问 Database/S3，不持有 Cloud/Database Credential |
 
 每个 Owner 独立交付自己的 Model/Service/API、Schema Change、Tests、OpenAPI 和必要文档。协调角色只负责顺序、Review 和追踪，不替代 Domain Owner 实现。
@@ -449,7 +449,7 @@ flowchart LR
 
 ### 7.3 协作与 Review 规则
 
-- Feature Branch → Pull Request → CI → 至少一名非作者 Review → Merge；禁止直接推送 `main` 或重写历史。
+- Feature Branch → Pull Request → 本地测试证据 → 至少一名非作者 Review → Merge；禁止直接推送 `main` 或重写历史。
 - Monorepo 只保留 `frontend/`、`backend/`、`infrastructure/`、`docs/`、`.github/` 五个顶层工作区；Branch 使用 `<type>/WBS-<member>-<number>-<slug>`，一个 Trello Task 对应一个短期 Branch。
 - Domain Owner 对正确性最终负责；Reviewer 重点检查合同、权限、Database Schema 和回归风险，而不是接管实现。
 - A 是 Release Coordinator；B 是 Database Schema Coordinator；C 是 Project Coordinator；D 是 Frontend/E2E Coordinator。四个协调角色互不替代。
@@ -473,12 +473,6 @@ it-service-desk/
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── bug-report.md
 │   │   └── feature-request.md
-│   ├── workflows/
-│   │   ├── backend-ci.yml
-│   │   ├── frontend-ci.yml
-│   │   ├── openapi-check.yml
-│   │   ├── docker-build.yml
-│   │   └── deploy-final.yml
 │   ├── CODEOWNERS
 │   ├── PULL_REQUEST_TEMPLATE.md
 │   └── dependabot.yml
@@ -744,7 +738,6 @@ it-service-desk/
 │   │   └── cleanup-aws-resources.ps1
 │   ├── policies/
 │   │   ├── ecs-task-role.json
-│   │   ├── github-oidc-role.json
 │   │   └── developer-s3-policy.json
 │   └── README.md
 ├── docs/
@@ -817,7 +810,7 @@ it-service-desk/
 | 路径 / 文件 | Owner / 规则 |
 |---|---|
 | `backend/domains/platform`、`attachments`、`dashboard`、`integrations/s3` | A |
-| `infrastructure/`、AWS、CI/CD、Cloud Smoke、Release | A |
+| `infrastructure/`、AWS、Cloud Smoke、Release | A |
 | `backend/domains/auth`、`users`、`reference_data`、`tickets`、`comments` | B |
 | `backend/app/db/`、`backend/database/release/` | B 协调；各 Domain Owner 仍负责自己 Model 正确性 |
 | `backend/domains/assignment`、`workflow`、`vendor_workflow`、`audit`、`sla` | C |
@@ -827,8 +820,6 @@ it-service-desk/
 | `backend/app/db/model_registry.py` | B 合并 Model Registration |
 | `docs/api/openapi.json` | 从 FastAPI 生成，禁止手工编辑；API Owner 随 PR 更新 |
 | `frontend/src/api/generated/` | D 从已合并 OpenAPI 生成，禁止手工编辑 |
-| `.github/workflows/backend-ci.yml` | A |
-| `.github/workflows/frontend-ci.yml` | D 编写，A Review |
 
 `CODEOWNERS` 中的 A/B/C/D 只是本文角色名称；实际建立 Repository 时必须替换为四位成员的真实 GitHub Username，否则 GitHub 不会自动请求 Review。
 
@@ -877,11 +868,11 @@ it-service-desk/
 
 Attachment Cleanup 必须先锁定 Upload Session 并重新读取状态；只删除 EXPIRED/ABORTED Object，绝不删除 COMPLETED Object。SLA/Close Job 和 API 的 Boundary Tests 使用同一 Clock/Deadline Service，防止两套规则漂移。
 
-### 8.3 CI、Integration 和 Release Gates
+### 8.3 本地验证、Integration 和 Release Gates
 
 | Gate | 必须通过 |
 |---|---|
-| PR CI | Backend lint/unit/contract/empty-database-bootstrap checks；Frontend lint/type/component/build；Secret Scan；Docker Build |
+| PR 本地验证 | Backend lint/unit/contract/empty-database-bootstrap checks；Frontend lint/type/component/build；Secret Scan；Docker Build |
 | Merge to main | OpenAPI Compatible；全新本地 MySQL Bootstrap；API Integration Tests；Seed Idempotent |
 | Cloud Candidate | Backend/Frontend Images、Database Bootstrap Task、Health/Smoke、S3 Upload、Scheduler Dry Run |
 | Final Release | Critical E2E、Role Visibility、Direct API Test、CloudWatch Evidence、Rollback 信息、公开 URLs |
@@ -895,7 +886,7 @@ Attachment Cleanup 必须先锁定 Upload Session 并重新读取状态；只删
 | Milestone | 日期 | 目标 | Exit Evidence |
 |---|---|---|---|
 | M0 Baseline Freeze | 20–23 Aug | v4、Owner、Workflow、AttachmentUpload 达成一致 | 本文 + Changelog + Trello |
-| M1 Contract/Skeleton | 24–30 Aug | Repo、CI、OpenAPI、Models、跨域 Interface、Mock | CI Green；OpenAPI 可供 D 使用 |
+| M1 Contract/Skeleton | 24–30 Aug | Repo、本地测试、OpenAPI、Models、跨域 Interface、Mock | 本地测试通过；OpenAPI 可供 D 使用 |
 | M2 Core Vertical Slice | 31 Aug–6 Sep | Auth、Ticket、Assignment、Comment、首个 Frontend Flow | User 可创建并查看已分配 Ticket |
 | M3 Workflow/Storage | 7–13 Sep | T1/T2/Vendor/SLA、AttachmentUpload、Audit | API Integration Tests Green |
 | M4 Frontend Integration | 14–20 Sep | 各 Role 页面、Dashboard、附件、错误处理 | Critical Path 本地 E2E |
@@ -924,7 +915,7 @@ Attachment Cleanup 必须先锁定 Upload Session 并重新读取状态；只删
 - Client、Backend、Cloud Database 三层成立；RDS/S3 私有且使用最小权限。
 - 附件由持久化 Upload Session 绑定 Ticket/Creator/Visibility/Object；Complete 以 HeadObject 为准且幂等。
 - 32 个公共 API 全部可列示和测试，其中 17 个 POST，满足 Assignment 下限。
-- Git History、Pull Requests、Trello、CI、Cloud Logs、API/E2E Results 能证明个人贡献和团队集成。
+- Git History、Pull Requests、Trello、本地测试证据、Cloud Logs、API/E2E Results 能证明个人贡献和团队集成。
 
 ### 10.3 最终交付清单
 

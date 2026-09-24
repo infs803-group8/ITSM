@@ -21,7 +21,7 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 /**
  * Backend health check
  *
- * Checks backend version and database readiness; used by ALB and CI/CD smoke tests.
+ * Checks backend version and database readiness; used by ALB and deployment smoke tests.
  *
  * Access: Public. Owner: Member A.
  */

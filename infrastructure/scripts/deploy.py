@@ -1,5 +1,6 @@
-"""Deploy immutable images to Terraform-created ECS services using OIDC credentials.
+"""Deploy immutable images to Terraform-created ECS services.
 
+Uses locally configured AWS credentials.
 Configuration is the JSON value of ``terraform output -json deployment_config``.
 No infrastructure is provisioned by this command. Bootstrap is a separate action.
 """

@@ -4,11 +4,42 @@
 
 工作位置：团队仓库 `ITSM/frontend`，当前分支 `feature/WBS-D01-openapi-client`。
 
-本次只修改前端。`backend`、`docs/api/openapi.yaml`、`.github`、基础设施和旧的独立 `INFS803/frontend` 均不修改。不执行 commit、push 或创建 PR，由你检查后手动提交。
+D01 自己的实现改动只在前端。本次按你的授权把 main `6736508` 合入 D01，因此包含团队在后端、OpenAPI、`.github` 和基础设施的既有更新，但没有自行改写这些文件，也没有修改旧的独立 `INFS803/frontend`。同步工作保存为本地合并提交，不推送、不创建 PR；main 分支指针保持不变。
+
+## 2026-09-24：同步 main 与最新合同（当前状态）
+
+以 D01 `1db9797` 为起点，合入本地 main `6736508`。该 main 包含工作流 P1 修复以及 B/C 共用 TicketDetail 组装器的更新。采用合并提交保留双方历史，没有 rebase、强推或直接提交到 main。
+
+| 位置 | 本次处理 |
+| --- | --- |
+| `package.json`、`package-lock.json` | 解决两处文件冲突；保留已验证的 D01 完整依赖集合、main 的共享版本和安全覆盖规则；未重新升级工具版本 |
+| `openapi.config.mjs` | 删除旧 `readWrite: false` 兼容开关，恢复生成器默认读写处理 |
+| `src/api/generated/` | 根据 main 合同重新生成 SDK、类型、类型导出和合同指纹；Token 仍是响应必填字段，登录/注册密码进入生成的 Writable 请求类型 |
+| `src/api/types.ts`、`auth.ts`、`src/mocks/handlers.ts` | 输入类型直接从生成操作的 `body` 派生，保留登录/注册密码字段；不手写重复的 DTO |
+| `tests/api/contract.test.ts` | 新增 Token 可读/必填、升级后空动作两项断言；补登录/注册写入类型断言 |
+| `tests/api/client.test.ts` | 新增测试专用升级成功 → GET 404 场景，验证空动作、错误信息和 Token 保留；不把它冒充完整工程师 Mock |
+| `README.md`、本文件 | 更新 Token 问题已解决、CI 已移除、同步结果和详情页后续要求 |
+
+两项后端合同修改的处理结果：
+
+1. `LoginData.access_token.writeOnly` 已由后端删除。前端不再需要全局禁用读写拆分；密码的 `writeOnly` 是正确标记，因此使用 `src/api/types.ts` 中从 SDK 派生的输入别名。
+2. `API25Success` 的 `available_actions` 已变为 `[]`。合同指纹已更新，并有明确断言防止回退；后续 Tier 1 详情页必须在升级成功后离开详情页，清理旧详情缓存并刷新列表，再次 GET 404 时显示无访问权限/不可用提示并返回列表。不要注销登录，也不要在全局拦截器中对所有 404 跳转。D01 仅验证接口层行为，尚未实现页面跳转。
+
+合并后本地验证：
+
+- `npm ci`、完整依赖树检查成功；无 Node engine 或 peer dependency 冲突。
+- 共享的 16 项直接依赖仍与 main 一致；本机 Node 22.23.3、npm 10.9.9 未再次变更。
+- `npm run check`：32 个接口、9 个基础 Mock 生成一致性检查、TypeScript、**69 项**单元/组件测试和生产构建通过。
+- `npm run test:api:browser`：**2 项**浏览器测试通过。
+- `npm audit` 与 `npm audit --omit=dev`：均为 **0 项已知告警**。
+- 同步后的后端 **403 项**单元/合同测试通过（使用已有隔离 Python 环境）；有一条测试库弃用提醒，没有测试失败。
+- 未执行真实 MySQL、S3、AWS 或部署验证；Mock 测试不等于页面与真实后端的业务验收。
+
+下面保留此前依赖对齐与安全修复的历史记录；当前同步状态以上述结果为准。
 
 ## 2026-09-24：仅对齐 main 依赖与本机环境
 
-按你的选择，本次没有把整个 main 合入 D01。main 仍为 `5ff9efb`，D01 仍基于原有提交；后端、OpenAPI、GitHub Actions 文件均未随此次改动同步。
+此前按你的选择，仅对齐依赖，没有把整个 main 合入 D01。当时参考 main `5ff9efb`，后端、OpenAPI、GitHub Actions 文件未随该阶段同步；这不是本次完成后的分支状态。
 
 - `package.json`、`package-lock.json`：共享直接依赖的声明范围与 main 一致，实际安装的 16 项共享直接依赖版本也逐项核对一致。主要工具为 Vite 8.2.2、React 插件 6.1.1、Vitest 5.0.1、jsdom 30.0.1、jest-dom 7.0.1。
 - 保留 D01 的生成器 0.99.0、Ajv、YAML、Token/错误处理、Mock 和完整检查脚本，没有退回 main 的空白接口基础或允许零测试通过的配置。
@@ -29,11 +60,11 @@
 
 现在关闭并重新打开 VS Code 终端，运行 `node -v`、`npm -v`，应分别显示 `v22.23.3`、`10.9.9`。开发方式仍是 `npm run dev`，后续还原依赖仍使用 `npm ci`。
 
-上述项目修改尚未提交、推送或创建 PR，全部在 `frontend/` 内。本机 Node 安装不属于 Git 提交内容。
+上述依赖对齐与下述安全修复后来已保存到 D01 的 `1db9797` 提交。本机 Node 安装不属于 Git 提交内容。
 
-## 2026-09-24：开发依赖安全告警修复（最新结果）
+## 2026-09-24：开发依赖安全告警修复（历史记录）
 
-在你授权后，仅在前端做了以下修复，没有合并 main、修改后端或改动 OpenAPI：
+该阶段仅在前端做了以下修复，没有合并 main、修改后端或改动 OpenAPI：
 
 | 文件 | 本次修复 |
 | --- | --- |
@@ -52,7 +83,7 @@
 - `npm run test:api:browser`：2 项浏览器测试通过。
 - API 生成源码、Mock 生成文件及合同内容均未变化；没有使用 `npm audit fix --force`。
 
-仍未执行 commit、push 或 PR。Git 中看到的较大锁文件差异同时包含此前对齐 main 工具版本的未提交修改，不全是本次三个安全修复包造成的。
+该阶段修改后来已保存至 `1db9797`。它相对旧 D01 的较大锁文件差异同时包含工具版本对齐，不全是三个安全修复包造成的。
 
 ## 哪里修改、添加了什么
 
@@ -90,9 +121,9 @@
 - 原有四个业务 Playwright 文件仍为跳过的占位测试；新增两个浏览器测试验证接口基础，不代表四角色全流程完成。
 - 尚未进行真实后端、S3 和 Docker 部署验证。
 
-## 需要团队知晓的合同问题
+## Token 合同问题已解决
 
-`LoginData.access_token` 在 v1.1 中既为登录响应必填字段，又标记了 `writeOnly`。默认生成会删除返回类型中的 Token。本次在前端生成配置关闭 read/write 拆分，保留合同显式字段，附测试保护；没有改 OpenAPI。后续请与 B 成员确认该注解，再决定是否恢复生成器默认行为。
+旧合同曾把 `LoginData.access_token` 同时标成响应必填和 `writeOnly`。最新 main 已修复此注解，D01 本次已恢复默认生成行为并重新生成。Token 可读性、密码请求字段和操作类型均有回归保护；不再需要等待 B 确认旧问题。
 
 ## 本地验证和手动 PR
 
@@ -114,4 +145,4 @@ npm run test:api:browser
 
 开发页面：没有 `.env` 时复制 `.env.example` 为 `.env`（已有则只检查其中配置，不覆盖），再运行 `npm run dev`。测试执行完退出是正常的；想打开网页必须保持开发服务器运行。
 
-GitHub Desktop 手动提交前，确认当前仓库是 `ITSM`、分支是 `feature/WBS-D01-openapi-client`，Changed files 全部在 `frontend/`。生成源码和 `package-lock.json` 要提交；`node_modules`、`dist`、`.env`、测试报告不要提交。检查完再自行 commit、push、创建 PR；不要直接提交到 `main`。
+本次同步已保存为本地合并提交。准备 PR 时，确认当前仓库是 `ITSM`、分支是 `feature/WBS-D01-openapi-client`，PR 的 base 是 `main`；D01 相对 main 的实现差异应全部在 `frontend/`。合并提交历史中包含 main 的后端变化是正常的，不应把它误认为 D01 自行修改了后端。生成源码和 `package-lock.json` 要提交；`node_modules`、`dist`、`.env`、测试报告不要提交。是否推送和创建 PR，等待你另行确认；不要直接提交到 `main`。
