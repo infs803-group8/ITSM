@@ -2,7 +2,7 @@
 
 from app.common.request_context import RequestContext
 from app.core.enums import AvailableAction, UserRole
-from app.domains.tickets.service import TicketService
+from app.domains.tickets.detail_assembler import merge_available_actions
 
 
 def _actor(role: UserRole, *, user_id: int = 10) -> RequestContext:
@@ -10,7 +10,7 @@ def _actor(role: UserRole, *, user_id: int = 10) -> RequestContext:
 
 
 def test_pending_user_does_not_advertise_ordinary_comment():
-    actions = TicketService._actions(
+    actions = merge_available_actions(
         _actor(UserRole.USER),
         {"status_code": "PENDING_USER", "vendor_request_status": None},
         ["RESUME"],
@@ -20,7 +20,7 @@ def test_pending_user_does_not_advertise_ordinary_comment():
 
 
 def test_manager_resolved_does_not_reintroduce_assign():
-    actions = TicketService._actions(
+    actions = merge_available_actions(
         _actor(UserRole.SERVICE_DESK_MANAGER),
         {"status_code": "RESOLVED", "vendor_request_status": None},
         [],
@@ -30,7 +30,7 @@ def test_manager_resolved_does_not_reintroduce_assign():
 
 
 def test_closed_ticket_never_has_actions():
-    actions = TicketService._actions(
+    actions = merge_available_actions(
         _actor(UserRole.SERVICE_DESK_MANAGER),
         {"status_code": "CLOSED", "vendor_request_status": None},
         ["ASSIGN"],

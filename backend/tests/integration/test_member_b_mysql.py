@@ -83,6 +83,17 @@ def test_member_b_api_12_through_20_with_real_mysql():
         assert reference["data"]["timers"]["engineering_sla_hours"] == 48
         assert "PENDING_VENDOR" not in reference["data"]["ticket_statuses"]
 
+        vendor_reference = _expect(
+            client.get("/api/v1/reference-data", headers=_auth(1105)),
+            200,
+            "API-12 vendor-visible statuses",
+        )
+        assert vendor_reference["data"]["ticket_statuses"] == [
+            "IN_PROGRESS",
+            "PENDING_VENDOR",
+            "CLOSED",
+        ]
+
         assignees = _expect(
             client.get(
                 "/api/v1/users/assignees?tier=TIER2&category=NETWORK",
@@ -271,6 +282,22 @@ def test_member_b_api_12_through_20_with_real_mysql():
 
         hidden = client.get(f"/api/v1/tickets/{ticket_id}", headers=_auth(1102))
         assert hidden.status_code == 404
+
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE tickets SET status_code='IN_PROGRESS', assignee_id=1102 "
+                    "WHERE ticket_id=:ticket_id"
+                ),
+                {"ticket_id": ticket_id},
+            )
+        tier1_detail = _expect(
+            client.get(f"/api/v1/tickets/{ticket_id}", headers=_auth(1102)),
+            200,
+            "API-17 Tier 1 vendor payload isolation",
+        )
+        assert tier1_detail["data"]["vendor_request"] is None
+
         internal = client.post(
             f"/api/v1/tickets/{ticket_id}/comments",
             headers=_auth(1101),
