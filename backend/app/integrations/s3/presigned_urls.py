@@ -15,9 +15,7 @@ from app.integrations.s3.object_verification import (
 
 
 class ObjectStorage(Protocol):
-    def create_upload_url(
-        self, *, object_key: str, content_type: str, expires_in: int
-    ) -> str: ...
+    def create_upload_url(self, *, object_key: str, content_type: str, expires_in: int) -> str: ...
 
     def head_object(self, *, object_key: str) -> ObjectInfo: ...
 
@@ -58,9 +56,7 @@ class S3ObjectStorage:
         except (BotoCoreError, ClientError) as exc:
             raise ObjectStorageError from exc
 
-    def create_upload_url(
-        self, *, object_key: str, content_type: str, expires_in: int
-    ) -> str:
+    def create_upload_url(self, *, object_key: str, content_type: str, expires_in: int) -> str:
         try:
             signed_url = self.client.generate_presigned_url(
                 "put_object",

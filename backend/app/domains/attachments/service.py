@@ -249,9 +249,10 @@ class AttachmentService:
                 return AttachmentResponse(data=attachment_data(attachment))
 
             now = utc_now()
-            if upload.status == AttachmentUploadStatus.EXPIRED.value or as_utc(
-                upload.expires_at
-            ) <= now:
+            if (
+                upload.status == AttachmentUploadStatus.EXPIRED.value
+                or as_utc(upload.expires_at) <= now
+            ):
                 self._mark_and_raise(
                     upload,
                     AttachmentUploadStatus.EXPIRED,
