@@ -42,7 +42,7 @@ run "release_configuration" {
   command = apply
   assert {
     condition     = alltrue([for service in aws_ecs_service.application : service.desired_count == 0])
-    error_message = "Services must remain idle until the release workflow runs."
+    error_message = "Services must remain idle until the manual release script runs."
   }
   assert {
     condition     = alltrue([for schedule in aws_scheduler_schedule.jobs : schedule.state == "DISABLED"])

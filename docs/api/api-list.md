@@ -317,7 +317,7 @@ SERVICE_UNAVAILABLE
 - **用户看到的结果**：服务正常时看到 `200`、服务版本和当前时间；服务或数据库不可用时看到 `503`。前端成员可据此判断问题来自后端环境，而不是自己的页面代码。
 - **对用户的提示**：这个接口只表示后端和数据库的基本连接正常，不代表登录、上传附件等全部业务功能都已经测试通过。
 
-- **作用**：Backend health check。Checks backend version and database readiness; used by ALB and CI/CD smoke tests.
+- **作用**：Backend health check。Checks backend version and database readiness; used by ALB and deployment smoke tests.
 - **Owner**：成员 A
 - **Access**：Public
 - **成功**：HTTP 200，Response Model：`HealthResponse`
@@ -2368,6 +2368,6 @@ Backend 不能把“字段未提交”和“字段明确提交为 null”当成�
 
 - 每个 API Owner 在同一 PR 提交 Router、Pydantic Schema、Service、Repository、Unit/Contract Tests 和 OpenAPI Change。
 - D 只依赖已合并的 OpenAPI YAML/JSON 生成 TypeScript Types 和 Mock。
-- CI 必须验证运行中 FastAPI `/api/openapi.json` 与本合同不存在 Path/Method/Schema 漂移。
+- 本地验证必须确认运行中 FastAPI `/api/openapi.json` 与本合同不存在 Path/Method/Schema 漂移。
 - Request/Response 或 Error Code 的任何变化需要 A/B/C/D 受影响成员 Review。
 - Swagger 能调用并不代表完成；Role、404 隐藏、状态边界、事务、幂等和错误路径必须有测试。
