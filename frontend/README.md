@@ -25,6 +25,8 @@ D02 starts from merged main `6bdcdf8` on `feature/WBS-D02-auth-pages`. It adds d
 
 In local Mock mode, open the site, select **Use demo account**, then **Sign in**. Registration and profile editing also work against the existing USER Mock. In real-backend mode the same pages call generated API-08/09/10/11 operations; actual Python/database integration is still to be verified with the team. There is no frontend role selector. Only engineer accounts receive the availability control.
 
+Profile saves cancel and await the current account's pending profile query before sending PATCH, so a delayed refresh cannot overwrite the saved response. A synchronous submission lock covers cancellation and the write; leaving the page or signing out cancels the pending operation. Refresh and read-error retry share a guard, and automatic focus/reconnect refetches are disabled for this editable profile page. Save failures release the lock so users can retry.
+
 `antd` **6.6.5** and `@ant-design/icons` **6.3.4** are exact-pinned additions. Existing direct dependency versions remain unchanged. Desktop viewports are the acceptance target; mobile-specific layouts and tests are not included.
 
 See [D02-HANDOFF.md](D02-HANDOFF.md) for the change map, test commands, screenshots and remaining scope. D02 and the PR #49 review fixes are submitted together for review; merging into main remains a separate team decision.
@@ -144,7 +146,7 @@ npm run test:auth:e2e
 - `tests/component/ApiErrorNotice.test.tsx`: accessible message/request ID, retry click, no raw details.
 - `tests/api-browser/api-foundation.spec.ts`: three real Chromium/Service Worker checks, including the PR #49 USER-permission regression; not full user-page flows.
 
-`tests/component/auth-pages.test.tsx` adds 18 account-page integration cases using React StrictMode and the generated SDK through MSW. `tests/auth-browser/auth-pages.spec.ts` adds six desktop Chromium account flows, including keyboard interaction. `test:auth:e2e` uses an isolated server on port 5182; API browser checks use 5181. Browser tests require those ports to be free and shut down their servers after completion.
+`tests/component/auth-pages.test.tsx` has 23 account-page integration cases using React StrictMode and the generated SDK through MSW. The five PR #50 regressions use controlled request/cancellation promises to cover stale refreshes, duplicate submissions and retry, sign-out/navigation during cancellation, and refresh/retry guards. `tests/auth-browser/auth-pages.spec.ts` adds six desktop Chromium account flows, including keyboard interaction. `test:auth:e2e` uses an isolated server on port 5182; API browser checks use 5181. Browser tests require those ports to be free and shut down their servers after completion.
 
 The four original `tests/e2e` business scenarios remain skipped placeholders. `npm run test:e2e` is not a completed business-flow acceptance suite yet; use `test:auth:e2e` for D02. No real backend integration, Docker deployment or S3 upload is claimed by these Mock tests.
 

@@ -3,18 +3,18 @@ import { StrictMode } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConfigProvider } from "antd";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { AppRouter } from "../../src/app/router";
 import { RoleRoute } from "../../src/app/roleRoutes";
-import { AuthProvider } from "../../src/features/auth/AuthProvider";
+import { AuthProvider, useAuth } from "../../src/features/auth/AuthProvider";
 import { login } from "../../src/api/auth";
 import { tokenStorage } from "../../src/api/tokenStorage";
 import { handlers, mockApiUrl, mockError } from "../../src/mocks/handlers";
 import { mockCredentials, mockState, resetMockState } from "../../src/mocks/state";
 import { helpdeskTheme } from "../../src/styles/theme";
-import type { Role, UpdateProfileRequest } from "../../src/api/types";
+import type { Role, UpdateProfileRequest, UserProfile } from "../../src/api/types";
 
 const server = setupServer(...handlers);
 let queryClient: QueryClient;
@@ -41,6 +41,22 @@ async function signIn() {
 function fillRegistration(email = "new@example.com") {
   fill("Display name", "New User"); fill("Email address", email);
   fill("Password", "NewPassword123!"); fill("Confirm password", "NewPassword123!");
+}
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+function SessionNameProbe() {
+  const { user } = useAuth();
+  return <output aria-label="Session display name">{user?.display_name ?? "anonymous"}</output>;
+}
+
+function LeaveProfileButton() {
+  const navigate = useNavigate();
+  return <button onClick={() => navigate("/does-not-exist")}>Leave profile</button>;
 }
 
 describe("D02 account pages with real SDK requests", () => {
@@ -130,6 +146,144 @@ describe("D02 account pages with real SDK requests", () => {
     submit("Save changes");
     expect(await screen.findByText("Enter your display name.")).toBeVisible();
     expect(mockState.accounts.get(mockCredentials.email)!.profile.display_name).toBe("Example Requester");
+  });
+
+  it("keeps a saved profile when an older refresh response arrives last", async () => {
+    mount("/login", <><AppRouter /><SessionNameProbe /></>); await signIn();
+    const started = deferred(), release = deferred(), handlerReturned = deferred();
+    const oldProfile = structuredClone(mockState.accounts.get(mockCredentials.email)!.profile);
+    server.use(http.get(mockApiUrl("/users/me"), async () => {
+      started.resolve();
+      await release.promise;
+      handlerReturned.resolve();
+      return HttpResponse.json({ data: oldProfile });
+    }));
+    try {
+      submit("Refresh"); await started.promise;
+      fill("Display name", "Saved New Name");
+      await waitFor(() => expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled());
+      submit("Save changes");
+      await screen.findByText("Your profile has been updated.");
+      expect(mockState.accounts.get(mockCredentials.email)!.profile.display_name).toBe("Saved New Name");
+      await act(async () => { release.resolve(); await handlerReturned.promise; });
+      await waitFor(() => expect(queryClient.isFetching({ queryKey: ["profile"] })).toBe(0));
+      expect(screen.getByLabelText("Display name")).toHaveValue("Saved New Name");
+      expect(screen.getByRole("heading", { name: "Saved New Name" })).toBeVisible();
+      expect(screen.getByLabelText("Session display name")).toHaveTextContent("Saved New Name");
+      const profiles = queryClient.getQueriesData<UserProfile>({ queryKey: ["profile"] });
+      expect(profiles).toHaveLength(1);
+      expect(profiles[0][1]?.display_name).toBe("Saved New Name");
+      expect(screen.getByText("Your profile has been updated.")).toBeVisible();
+    } finally { release.resolve(); }
+  });
+
+  it("locks duplicate submissions while cancelling reads and allows retry after PATCH fails", async () => {
+    mount(); await signIn();
+    const started = deferred(), release = deferred();
+    const cancelQueries = queryClient.cancelQueries.bind(queryClient);
+    const cancellation = vi.spyOn(queryClient, "cancelQueries").mockImplementationOnce(async (filters) => {
+      started.resolve(); await release.promise;
+      return cancelQueries(filters);
+    });
+    const patches = vi.fn();
+    server.use(http.patch(mockApiUrl("/users/me"), async ({ request }) => {
+      patches();
+      if (patches.mock.calls.length === 1) return mockError(request, 503, "SERVICE_UNAVAILABLE", "Save temporarily unavailable.");
+      const body = await request.json() as UpdateProfileRequest;
+      const account = mockState.accounts.get(mockCredentials.email)!;
+      account.profile = { ...account.profile, ...body };
+      return HttpResponse.json({ data: account.profile });
+    }));
+    try {
+      fill("Display name", "Retry New Name");
+      await waitFor(() => expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled());
+      submit("Save changes"); await started.promise;
+      expect(cancellation).toHaveBeenCalledWith({ queryKey: ["profile", 1001, 1], exact: true });
+      expect(patches).not.toHaveBeenCalled();
+      // Exercise the submit handler even if a queued second event bypasses the disabled button.
+      await act(async () => {
+        fireEvent.submit(screen.getByLabelText("Display name").closest("form")!);
+        fireEvent.submit(screen.getByLabelText("Display name").closest("form")!);
+      });
+      await act(async () => { release.resolve(); });
+      expect(await screen.findByRole("alert")).toHaveTextContent("Save temporarily unavailable.");
+      expect(patches).toHaveBeenCalledOnce();
+      expect(cancellation).toHaveBeenCalledOnce();
+      expect(screen.getByLabelText("Display name")).toHaveValue("Retry New Name");
+      await waitFor(() => expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled());
+      submit("Save changes");
+      await screen.findByText("Your profile has been updated.");
+      expect(patches).toHaveBeenCalledTimes(2);
+      expect(screen.getByRole("heading", { name: "Retry New Name" })).toBeVisible();
+    } finally { release.resolve(); }
+  });
+
+  it.each(["sign out", "leave page"])("does not send PATCH after %s while read cancellation is pending", async (action) => {
+    mount("/login", <><AppRouter /><LeaveProfileButton /></>); await signIn();
+    const started = deferred(), release = deferred(), finished = deferred();
+    const cancelQueries = queryClient.cancelQueries.bind(queryClient);
+    vi.spyOn(queryClient, "cancelQueries").mockImplementationOnce(async (filters) => {
+      started.resolve(); await release.promise;
+      return cancelQueries(filters);
+    });
+    const patches = vi.fn();
+    server.use(http.patch(mockApiUrl("/users/me"), () => { patches(); return HttpResponse.error(); }));
+    // Keep the exact mutation reference: sign-out clears the query client's caches.
+    let unsubscribe = () => {};
+    try {
+      fill("Display name", "Must not submit");
+      await waitFor(() => expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled());
+      submit("Save changes"); await started.promise;
+      const mutation = queryClient.getMutationCache().getAll()[0];
+      unsubscribe = queryClient.getMutationCache().subscribe((event) => {
+        if (event.type === "updated" && event.mutation === mutation && event.action.type === "error") finished.resolve();
+      });
+      if (action === "sign out") {
+        submit("Sign out");
+        await screen.findByRole("heading", { name: "Sign in to your workspace" });
+      } else {
+        submit("Leave profile");
+        await screen.findByRole("heading", { name: "We could not find that page" });
+      }
+      await act(async () => { release.resolve(); await finished.promise; });
+      expect(mutation.state.status).toBe("error");
+      expect(patches).not.toHaveBeenCalled();
+      expect(mockState.accounts.get(mockCredentials.email)!.profile.display_name).toBe("Example Requester");
+      if (action === "sign out") {
+        expect(tokenStorage.get()).toBeNull();
+        expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+      }
+    } finally { release.resolve(); unsubscribe(); }
+  });
+
+  it("blocks both refresh and read-error retry while saving", async () => {
+    mount(); await signIn();
+    const reads = vi.fn(), started = deferred(), release = deferred();
+    server.use(http.get(mockApiUrl("/users/me"), ({ request }) => {
+      reads(); return mockError(request, 503, "SERVICE_UNAVAILABLE", "Refresh temporarily unavailable.");
+    }));
+    server.use(http.patch(mockApiUrl("/users/me"), async ({ request }) => {
+      const body = await request.json() as UpdateProfileRequest;
+      started.resolve(); await release.promise;
+      const account = mockState.accounts.get(mockCredentials.email)!;
+      account.profile = { ...account.profile, ...body };
+      return HttpResponse.json({ data: account.profile });
+    }));
+    try {
+      submit("Refresh");
+      expect(await screen.findByRole("alert")).toHaveTextContent("Refresh temporarily unavailable.");
+      expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
+      fill("Display name", "Guarded Save");
+      await waitFor(() => expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled());
+      submit("Save changes"); await started.promise;
+      expect(screen.getByRole("button", { name: "Refresh" })).toBeDisabled();
+      expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+      expect(reads).toHaveBeenCalledOnce();
+      await act(async () => { release.resolve(); });
+      await screen.findByText("Your profile has been updated.");
+      expect(screen.getByLabelText("Display name")).toHaveValue("Guarded Save");
+      expect(reads).toHaveBeenCalledOnce();
+    } finally { release.resolve(); }
   });
 
   it.each<Role>(["ENGINEER_TIER1", "ENGINEER_TIER2"])("allows %s to update availability using test-only role fixtures", async (role) => {

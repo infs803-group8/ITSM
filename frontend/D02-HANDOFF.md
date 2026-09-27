@@ -61,7 +61,7 @@ npm audit --omit=dev
 ```
 
 - `check`：32 个生成 API / 9 个基础 Mock 的一致性、TypeScript、单元/组件测试、生产构建。
-- 新增组件测试：`tests/component/auth-pages.test.tsx`，18 项；覆盖表单校验、错误凭据、重复注册、注册字段限制、资料更新/取消、两级工程师开关、供应商只读资料、请求失败重试、401 清理、角色限制、会话恢复、退出后迟到请求和离页取消登录。
+- 组件测试：`tests/component/auth-pages.test.tsx`，原有 18 项加 PR #50 的 5 项并发回归，共 23 项；覆盖表单、资料修改、角色、会话、取消请求及下文记录的并发场景。
 - 新增浏览器测试：`tests/auth-browser/auth-pages.spec.ts`，6 项；覆盖真实页面注册/登录/修改资料/退出/返回保护、错误提示、刷新清除会话、桌面视口与键盘操作、404 返回。
 - API 浏览器测试：原有 2 项保留，另新增 1 项 PR #49 USER 权限回归，共 3 项；没有删除原本的接口断言。
 - 原有工单、工程师、供应商、附件业务 E2E 仍是 4 个跳过的占位测试；不能把它们算作通过。
@@ -85,6 +85,30 @@ npm audit --omit=dev
 | `README.md`、本文件 | 更新 Mock 限制、修复说明及实际测试数量 |
 
 本次没有修改后端、OpenAPI、生成客户端或 `fixtures.generated.json`，没有扩展完整工程师/供应商/附件/SLA Mock 工作流。91 项测试和 9 项浏览器测试是当前 D02 加本次修复的实际结果，不是沿用审核文档的旧数量。生产构建仍只有下文记录的非阻塞体积提示。
+
+## PR #50 资料刷新与保存并发修复（2026-09-28）
+
+依据《ITSM-PR50-成员D修复意见-2026-09-28.md》，修复继续保留在 `feature/WBS-D02-auth-pages`。按用户确认，提交并推送当前分支，更新既有 PR #50；不另建 PR，不合并 main。
+
+### 改动
+
+- `src/features/profile/ProfilePage.tsx`：在 mutation 的 `onMutate` 中 `await queryClient.cancelQueries({ queryKey, exact: true })`，只取消当前账户/会话的资料查询，再执行 PATCH。成功返回的数据写入表单、账户摘要、AuthProvider 和查询缓存，旧 GET 不再覆盖它。
+- 提交锁在等待取消前同步设置，完成或失败后按请求身份释放，防止连续点击重复提交，并支持保存失败后重试。
+- 取消等待后及 PATCH 前后检查 AbortSignal；退出或离开页面后，不再发送等待中的 PATCH，也不接受已取消的写入结果。原会话版本保护不变。
+- Refresh 与错误提示中的 Try again 使用同一个受保护入口；保存中或存在未保存编辑时不能发起新读取。此编辑页关闭窗口聚焦和网络恢复的自动刷新，避免绕过入口保护。
+- `tests/component/auth-pages.test.tsx`：新增 5 项可控 Promise 测试：旧 GET 晚于成功 PATCH、取消等待期间重复提交及失败重试、取消等待期间退出、取消等待期间离页、保存时同时保护刷新和读取重试入口。验证表单、摘要、AuthProvider 和缓存一致，不使用固定睡眠决定请求顺序。
+- `README.md` 和本文件：记录并发处理及新测试范围。
+
+本轮没有改后端、OpenAPI、生成客户端、生成 fixture 或依赖，也没有重新改动 PR #49 的权限修复。自动化测试仍以 MSW 为边界，不代表已经完成真实数据库联调。
+
+### 本轮验证结果
+
+- `npm run check`：通过；32 个 API / 9 个基础 Mock 生成一致性、TypeScript、**96 项单元/组件测试**及生产构建均通过。
+- `npm run test:api:browser`：**3 项通过**，含 PR #49 USER 权限回归。
+- `npm run test:auth:e2e`：**6 项通过**，含资料修改、退出和刷新会话保护。
+- `git diff --check`：通过。生产构建仍有原有非阻塞包体积提示（约 663 kB，gzip 219 kB）。
+- 浏览器测试重新生成了个人资料桌面截图，已检查，无布局修改。
+- 修复提交编号：见既有 PR #50 的更新记录。
 
 ## 后续工作，不属于本次已完成范围
 

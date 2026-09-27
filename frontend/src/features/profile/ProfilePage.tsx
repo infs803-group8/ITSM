@@ -16,7 +16,14 @@ export function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const request = useRef<AbortController | null>(null);
   const queryKey = ["profile", user!.user_id, sessionVersion];
-  const profile = useQuery({ queryKey, queryFn: async ({ signal }) => (await api10GetMyProfile({ signal })).data.data });
+  const profile = useQuery({
+    queryKey,
+    queryFn: async ({ signal }) => (await api10GetMyProfile({ signal })).data.data,
+    // Refresh explicitly through the guarded entry points below. A reconnect
+    // must not start another read while a write or an unsaved edit is pending.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
   const current = profile.data;
   const displayName = Form.useWatch("display_name", form);
   const availability = Form.useWatch("is_available", form);
@@ -34,13 +41,25 @@ export function ProfilePage() {
   }, [current, form, acceptProfile, sessionVersion]);
 
   const mutation = useMutation({
-    mutationFn: async ({ body, signal }: { body: UpdateProfileRequest; signal: AbortSignal }) =>
-      (await api11UpdateMyProfile({ body, signal })).data.data,
+    onMutate: async ({ signal }) => {
+      await queryClient.cancelQueries({ queryKey, exact: true });
+      // The user may have left or signed out while cancellation was pending.
+      signal.throwIfAborted();
+    },
+    mutationFn: async ({ body, signal }: { body: UpdateProfileRequest; signal: AbortSignal }) => {
+      signal.throwIfAborted();
+      const response = await api11UpdateMyProfile({ body, signal });
+      signal.throwIfAborted();
+      return response.data.data;
+    },
     onSuccess: (updated) => {
       if (!acceptProfile(updated, sessionVersion)) return;
       queryClient.setQueryData(queryKey, updated);
       form.setFieldsValue({ display_name: updated.display_name, is_available: updated.is_available ?? false });
       setSaved(true);
+    },
+    onSettled: (_data, _error, variables) => {
+      if (request.current?.signal === variables.signal) request.current = null;
     },
   });
 
@@ -51,27 +70,35 @@ export function ProfilePage() {
     if (engineer && values.is_available !== current.is_available) body.is_available = values.is_available;
     if (!Object.keys(body).length) return;
     const controller = new AbortController();
+    // Acquire the lock synchronously, including the await in onMutate.
     request.current = controller;
     setSaved(false);
-    mutation.mutate({ body, signal: controller.signal }, { onSettled: () => { request.current = null; } });
+    mutation.mutate({ body, signal: controller.signal });
   }
 
   function cancel() {
-    if (!current) return;
+    if (!current || request.current) return;
     form.resetFields();
     form.setFieldsValue({ display_name: current.display_name, is_available: current.is_available ?? false });
     mutation.reset();
     setSaved(false);
   }
 
+  function refresh() {
+    if (request.current || profile.isFetching || changed) return;
+    setSaved(false);
+    void profile.refetch();
+  }
+
   return <>
     <div className="page-heading"><div><p className="eyebrow">ACCOUNT SETTINGS</p><h1>My profile</h1>
       <p>Manage your details and service desk availability.</p></div>
       <Button icon={<ReloadOutlined aria-hidden="true" />} loading={profile.isFetching} disabled={mutation.isPending || changed}
-        onClick={() => { setSaved(false); void profile.refetch(); }}>Refresh</Button>
+        onClick={refresh}>Refresh</Button>
     </div>
     {profile.isPending && <div className="panel loading-panel" role="status">Loading your profile…</div>}
-    {profile.isError && <ApiErrorNotice error={profile.error} onRetry={() => { void profile.refetch(); }} />}
+    {profile.isError && <ApiErrorNotice error={profile.error}
+      onRetry={mutation.isPending || changed || profile.isFetching ? undefined : refresh} />}
     {current && <>
       <section className="profile-summary" aria-label="Account summary">
         <span className="avatar">{current.display_name.slice(0, 2).toUpperCase()}</span>
