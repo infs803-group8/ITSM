@@ -8,6 +8,8 @@ import { apiBaseUrl } from "../api/config";
 import fixtures from "./fixtures.generated.json";
 import { mockState } from "./state";
 import { validateBody, validateQuery, type MockOperation } from "./validation";
+import { inScope, projectTicket } from "./workspaceModel";
+import { createWorkspaceHandlers } from "./workspaceHandlers";
 
 export const mockApiBaseUrl = new URL(apiBaseUrl, globalThis.location?.origin ?? "http://localhost:5173").href.replace(/\/+$/, "");
 export const mockApiUrl = (route: string) => `${mockApiBaseUrl}${route}`;
@@ -96,7 +98,8 @@ export const handlers = [
     const body = await readBody<UpdateProfileRequest>("api11UpdateMyProfile", request);
     if (body instanceof Response) return body;
     if (Object.keys(body).length === 0) return mockError(request, 422, "VALIDATION_ERROR", "Provide at least one profile field.");
-    if (body.is_available !== undefined) return mockError(request, 403, "DATA_SCOPE_DENIED", "Only engineers can change availability.");
+    if (body.is_available !== undefined && !user.role.startsWith("ENGINEER")) return mockError(request, 403, "DATA_SCOPE_DENIED", "Only engineers can change availability.");
+    if (body.is_available !== undefined) user.is_available = body.is_available;
     if (body.display_name !== undefined) user.display_name = body.display_name;
     return HttpResponse.json({ data: user } satisfies UserResponse, { headers: headers(request) });
   }),
@@ -112,12 +115,15 @@ export const handlers = [
       body.data.comment_visibilities = ["USER_VISIBLE"];
       body.data.attachment_visibilities = ["USER_VISIBLE"];
     }
+    if (user.role === "ENGINEER_TIER1") body.data.attachment_visibilities = ["USER_VISIBLE", "INTERNAL_ONLY"];
+    if (user.role === "EXTERNAL_VENDOR") { body.data.ticket_statuses = ["PENDING_VENDOR", "IN_PROGRESS", "CLOSED"]; body.data.comment_visibilities = []; body.data.attachment_visibilities = ["VENDOR_SHARED"]; }
     return HttpResponse.json(body, { headers: headers(request) });
   }),
 
   http.post(mockApiUrl("/tickets"), async ({ request }) => {
     const user = authenticatedUser(request);
     if (!user) return unauthorized(request);
+    if (user.role !== "USER") return mockError(request, 403, "DATA_SCOPE_DENIED", "Only requesters can create tickets.");
     const body = await readBody<TicketCreateRequest>("api15CreateTicket", request);
     if (body instanceof Response) return body;
     const now = new Date().toISOString();
@@ -140,8 +146,10 @@ export const handlers = [
     if (user.role === "USER" && query.get("status") === "PENDING_VENDOR") {
       return mockError(request, 403, "DATA_SCOPE_DENIED", "The requested status is not visible.");
     }
-    if (query.has("assignee_id")) return mockError(request, 403, "DATA_SCOPE_DENIED", "Assignee filtering is restricted for this role.");
-    let tickets = [...mockState.tickets.values()].filter((ticket) => ticket.requester?.user_id === user.user_id);
+    if (query.has("assignee_id") && user.role !== "SERVICE_DESK_MANAGER") return mockError(request, 403, "DATA_SCOPE_DENIED", "Assignee filtering is restricted for this role.");
+    if (user.role === "EXTERNAL_VENDOR" && query.has("status") && !["PENDING_VENDOR", "IN_PROGRESS", "CLOSED"].includes(query.get("status")!)) return mockError(request, 403, "DATA_SCOPE_DENIED", "The requested status is not visible.");
+    let tickets = [...mockState.tickets.values()].filter((ticket) => inScope(ticket, user)).map((ticket) => projectTicket(ticket, user));
+    if (query.has("assignee_id")) tickets = tickets.filter((t) => t.assignee?.user_id === Number(query.get("assignee_id")));
     for (const field of ["status", "category", "priority"] as const) {
       if (query.has(field)) tickets = tickets.filter((ticket) => ticket[field] === query.get(field));
     }
@@ -168,9 +176,11 @@ export const handlers = [
     const user = authenticatedUser(request);
     if (!user) return unauthorized(request);
     const ticket = mockState.tickets.get(Number(params.id));
-    if (!ticket || ticket.requester?.user_id !== user.user_id) return notFound(request);
-    return HttpResponse.json({ data: ticket } satisfies TicketDetailResponse, { headers: headers(request) });
+    if (!ticket || !inScope(ticket, user)) return notFound(request);
+    return HttpResponse.json({ data: projectTicket(ticket, user) } satisfies TicketDetailResponse, { headers: headers(request) });
   }),
+
+  ...createWorkspaceHandlers({ url: mockApiUrl, authenticatedUser, error: mockError }),
 
   // Baseline mocks must never silently send an unsupported API call to a real backend.
   http.all(mockApiUrl("/*"), () => HttpResponse.error()),

@@ -10,6 +10,7 @@ const check = process.argv.includes("--check");
 const stagingRoot = await mkdtemp(path.join(os.tmpdir(), "itsm-api-generation-"));
 const generatedDirectory = "src/api/generated";
 const fixturesFile = "src/mocks/fixtures.generated.json";
+const workspaceFixturesFile = "src/mocks/workspace-fixtures.generated.json";
 const mockOperations = new Set([
   "api01Health", "api08Register", "api09Login", "api10GetMyProfile",
   "api11UpdateMyProfile", "api12ReferenceData", "api15CreateTicket",
@@ -46,6 +47,7 @@ try {
   await createClient({ ...generatorConfig(stagingRoot), configFile: false });
 
   const fixtures = {};
+  const workspaceFixtures = {};
   const schemas = {};
   function collectSchemas(value) {
     if (!value || typeof value !== "object") return;
@@ -63,16 +65,19 @@ try {
     for (const [method, operation] of Object.entries(pathItem)) {
       if (!operation.operationId) continue;
       operationCount += 1;
-      if (!mockOperations.has(operation.operationId)) continue;
       const success = Object.entries(operation.responses).find(([status]) => /^2\d\d$/.test(status));
       const media = success?.[1].content?.["application/json"];
       const body = media?.example ?? resolve(Object.values(media?.examples ?? {})[0])?.value;
       if (body === undefined) throw new Error(`Missing success example: ${operation.operationId}`);
       const requestSchema = resolve(operation.requestBody)?.content?.["application/json"]?.schema ?? null;
       const parameters = [...(pathItem.parameters ?? []), ...(operation.parameters ?? [])].map(resolve);
-      collectSchemas(requestSchema);
-      collectSchemas(parameters);
-      fixtures[operation.operationId] = { method, path: url, status: Number(success[0]), body, requestSchema, parameters };
+      const fixture = { method, path: url, status: Number(success[0]), body, requestSchema, parameters };
+      workspaceFixtures[operation.operationId] = fixture;
+      if (mockOperations.has(operation.operationId)) {
+        collectSchemas(requestSchema);
+        collectSchemas(parameters);
+        fixtures[operation.operationId] = fixture;
+      }
     }
   }
   if (Object.keys(fixtures).length !== mockOperations.size) throw new Error("A baseline Mock operation is missing from the contract.");
@@ -85,9 +90,11 @@ try {
   await writeFile(path.join(stagingRoot, generatedDirectory, "contract-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   await mkdir(path.dirname(path.join(stagingRoot, fixturesFile)), { recursive: true });
   await writeFile(path.join(stagingRoot, fixturesFile), `${JSON.stringify({ operations: fixtures, components: { schemas } }, null, 2)}\n`);
+  await writeFile(path.join(stagingRoot, workspaceFixturesFile), `${JSON.stringify({ operations: workspaceFixtures, components: contract.components }, null, 2)}\n`);
 
   const expected = (await filesIn(path.join(stagingRoot, generatedDirectory))).map((file) => path.relative(stagingRoot, file));
   expected.push(fixturesFile);
+  expected.push(workspaceFixturesFile);
   const current = (await filesIn(path.join(frontendRoot, generatedDirectory))).map((file) => path.relative(frontendRoot, file));
   const changed = [];
   for (const file of new Set([...expected, ...current])) {
@@ -110,7 +117,7 @@ try {
     console.error(`Generated API files are out of date:\n${changed.join("\n")}\nRun npm run api:generate.`);
     process.exitCode = 1;
   } else {
-    console.log(`${check ? "Verified" : "Generated"} ${operationCount} API operations and ${mockOperations.size} baseline Mock fixtures.`);
+    console.log(`${check ? "Verified" : "Generated"} ${operationCount} API operations, ${mockOperations.size} baseline and ${Object.keys(workspaceFixtures).length} workspace Mock fixtures.`);
   }
 } finally {
   // mkdtemp returned this exact task-owned directory; no project directory is removed.

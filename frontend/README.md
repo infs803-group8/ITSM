@@ -21,15 +21,31 @@ Open the URL printed by Vite, normally `http://localhost:5173`. Keep that termin
 
 ## Account pages (D02)
 
-D02 starts from merged main `6bdcdf8` on `feature/WBS-D02-auth-pages`. It adds desktop web pages at `/login`, `/register` and `/profile`, plus a shared yellow/black/white theme, workspace layout, session management and route guards. The older standalone prototype has not been copied over the repository. Ticket pages remain future work.
+D02 added desktop web pages at `/login`, `/register` and `/profile`, plus a shared yellow/black/white theme, workspace layout, session management and route guards. D02 and its concurrency fix are merged into main at `01fad63`. D03 adds the business pages below; the older standalone prototype has not been copied over the repository.
 
-In local Mock mode, open the site, select **Use demo account**, then **Sign in**. Registration and profile editing also work against the existing USER Mock. In real-backend mode the same pages call generated API-08/09/10/11 operations; actual Python/database integration is still to be verified with the team. There is no frontend role selector. Only engineer accounts receive the availability control.
+In local Mock mode, choose a **Demo role**, click **Use demo account**, then **Sign in**. This development-only selector fills a fake account; it does not change roles in a live session and is absent from the production application. Registration still creates USER accounts only. In real-backend mode these pages call generated API-08/09/10/11 operations; actual Python/database integration is still to be verified with the team. Only engineer accounts receive the availability control.
 
 Profile saves cancel and await the current account's pending profile query before sending PATCH, so a delayed refresh cannot overwrite the saved response. A synchronous submission lock covers cancellation and the write; leaving the page or signing out cancels the pending operation. Refresh and read-error retry share a guard, and automatic focus/reconnect refetches are disabled for this editable profile page. Save failures release the lock so users can retry.
 
 `antd` **6.6.5** and `@ant-design/icons` **6.3.4** are exact-pinned additions. Existing direct dependency versions remain unchanged. Desktop viewports are the acceptance target; mobile-specific layouts and tests are not included.
 
-See [D02-HANDOFF.md](D02-HANDOFF.md) for the change map, test commands, screenshots and remaining scope. D02 and the PR #49 review fixes are submitted together for review; merging into main remains a separate team decision.
+See [D02-HANDOFF.md](D02-HANDOFF.md) for its historical change map and tests. D02, the PR #49 review fixes and the PR #50 concurrency fix are now merged into the D03 base.
+
+## Business pages (D03)
+
+Work branch: `feature/WBS-D03-ticket-workspace`, based on main `01fad63`. Desktop-only, frontend-only; no dependency changes.
+
+| Route | Function |
+| --- | --- |
+| `/tickets` | Role-scoped queue / vendor requests, search, filtering, sorting, pagination |
+| `/tickets/new` | USER creation, field validation and real API-15 client |
+| `/tickets/:id` | Detail, edit, workflow actions, comments, attachment upload/download and event timeline |
+| `/dashboard` | Engineer / manager counts, SLA risk and action-required summary |
+| `/overdue` | Current/history SLA breaches with filters, pagination and ticket links |
+
+The sidebar exposes only role-appropriate routes. Ticket buttons come from `available_actions`, not an invented status-to-permission mapping in the UI. The detail page handles nullable fields, USER/Vendor-visible statuses, read-only closure, conflict/reload, and neutral unavailable navigation. Workflow forms use API-21–31; a permanent close requires explicit acknowledgement. Form writes lock synchronously, cancel outstanding workspace reads, abort on unmount, and invalidate caches before refreshing.
+
+See [D03-HANDOFF.md](D03-HANDOFF.md) for the exact change map, evidence and remaining real-service checks.
 
 ## Generated API (D01)
 
@@ -51,7 +67,7 @@ npm run api:check
 ```
 
 - Input: `../docs/api/openapi.yaml` (read-only; do not edit it to make the frontend pass).
-- Output: `src/api/generated/` (all 32 operation functions, types, bundled Axios runtime, contract hash) and `src/mocks/fixtures.generated.json` (nine baseline examples and request-validation schemas).
+- Output: `src/api/generated/` (all 32 operation functions, types, bundled Axios runtime, contract hash), `src/mocks/fixtures.generated.json` (unchanged nine baseline examples) and `src/mocks/workspace-fixtures.generated.json` (D03: all 32 canonical examples and schemas). Both fixture files are generated, never hand-edited.
 - Commit the generated source and `public/mockServiceWorker.js`. Do not edit generated files manually. `api:generate` replaces stale generated files; `api:check` regenerates into a temporary directory and checks differences without changing the working files.
 - Line endings are normalized for Windows/Linux reproducibility. The contract-hash test detects source changes whenever the unit suite runs. Full generated-file drift is checked by `npm run api:check`.
 - Run generation from the full repository. The production Docker build uses the committed generated files; it does not need the parent `docs` directory in its frontend-only build context.
@@ -88,13 +104,13 @@ The first `.data` is Axios's HTTP body; the second is the contract's `data` fiel
 
 Tokens live **only in memory** (`tokenStorage.ts`); page reload requires sign-in again. A 401 for the current bearer token clears it and notifies `onUnauthorized`. D02's `AuthProvider` subscribes to clear user/query state and return to login. Pages should call the provider's `signOut()` rather than only the low-level `logout()` helper, so account caches are cleared too. Failed public logins, 403 responses and stale requests from an older session do not clear a newer token. Logout is local: the contract has no logout or refresh endpoint. Do not invent automatic refresh/retry of writes.
 
-For future S3 uploads, use the returned presigned URL and signed headers with a separate request (for example native `fetch`); never send the API bearer token to S3.
+Attachment uploads now use `src/api/attachmentTransfer.ts`: presign → raw XHR PUT with returned signed headers and progress → complete with `upload_id` only. The PUT bypasses the authenticated API client. Completion failures keep the upload session for retry without resending bytes; expired sessions require a new upload. File size, extension and MIME checks use reference data. Download URLs are requested on click and are not stored in browser persistence.
 
 ### Tier 1 escalation and detail-page scope
 
 API-25's success example now has `data.ticket.available_actions: []`: a Tier 1 caller loses access to the ticket after escalating it to Tier 2. The action can succeed with HTTP 200 while a later API-17 GET by the same caller returns 404. Do not recreate START/COMMENT/UPLOAD_ATTACHMENT actions from the ticket status.
 
-The future detail page should leave the detail view after successful escalation, invalidate/remove the old detail cache and refresh the list. A detail-page 404 should show a neutral unavailable/no-access message and return to the list; it must not log the user out or trigger a global redirect for every API's 404. D01 preserves the empty actions and normalized 404 without clearing the token, with a test-only SDK/MSW regression. It does not implement the page navigation or a complete Tier 1 Mock workflow.
+D03 leaves detail after successful Tier 1 escalation, removes the old detail cache and loads the queue. Detail 403/404 returns to the queue with a neutral unavailable message without logging the user out. Other API errors are shown in context. Component and browser regressions cover these behaviours.
 
 ## Mock mode and its limits
 
@@ -107,7 +123,7 @@ VITE_USE_MOCKS=true
 
 Restart Vite after changing environment variables. The worker starts before React renders. It is enabled only in development with the explicit flag; production never starts or imports the Mock modules. If worker setup fails, the app shows a startup error rather than silently using the real backend.
 
-The baseline supports **USER only**:
+The original D01/D02 baseline behaviours remain covered:
 
 | API | Local behavior |
 | --- | --- |
@@ -118,11 +134,11 @@ The baseline supports **USER only**:
 | 15 | Create own ticket using the deterministic UNASSIGNED/no-eligible-engineer branch |
 | 16–17 | Own ticket list/detail, filters, sorting, pagination, and scope-safe 404 |
 
-Fake demo account: `user@example.com` / `MockPass123!`. This is **not** a real backend account or a real JWT. Accounts, tokens and tickets reset on page reload. Request bodies and query parameters are validated against generated contract schemas; additional JSON fields, invalid enum casing and invalid pagination are rejected. The USER Mock strips engineer-only actions from the example ticket.
+Fake demo accounts: `user@example.com`, `tier1@example.com`, `tier2@example.com`, `vendor@example.com`, `manager@example.com`; all use `MockPass123!`. These are **not** real backend accounts or real JWTs. Accounts, tokens and tickets reset on page reload. Request bodies use generated schemas; baseline filters and pagination are validated. The USER Mock strips engineer-only actions from the example ticket.
 
 PR #49 review follow-up (included in D02): API-12 clones the canonical fixture before filtering USER-only options, leaving other reference settings and the generated fixture unchanged. API-16 rejects an explicit USER `status=PENDING_VENDOR` filter with `403 DATA_SCOPE_DENIED` after query validation. That response retains the request ID and must not clear the token or invoke `onUnauthorized`. SDK/MSW and browser regressions protect these rules; existing legal filtering, pagination and user isolation tests remain in place.
 
-The other operations intentionally fail locally in Mock mode; they do not fall through to a real server. Attachments/S3, dashboards, comments, engineering/vendor workflows, auto-assignment, SLA timers, password-policy details beyond the schema and production authentication are **not simulated**. Some original success examples represent different roles: example-schema tests are not evidence of full authorization or workflow correctness.
+D03 adds typed, stateful UI scenarios for directories, editing, comments, workflow, vendor response, attachment transfer/confirmation, events and dashboards in `workspaceHandlers.ts` / `workspaceModel.ts`. All 32 contract operations have a handler. Unknown operations still fail locally, never falling through to a real server. The sandbox has one vendor organisation and controlled sample tickets; it is **not** a faithful implementation of backend transactions, historical multi-vendor authorisation, auto-assignment, scheduler timers, AWS expiry or integrity/security guarantees. Overdue history uses explicitly seeded events. The Mock download is an openly labelled placeholder, not the original file. Validate those behaviours against the Python/MySQL/S3 stack before release.
 
 Set `VITE_USE_MOCKS=false` to call the Python backend. Confirm backend routes, credentials and CORS are ready. Production defaults to same-origin `/api/v1`; the team Dockerfile also supplies that value. Never store AWS keys, passwords, bearer tokens or other secrets in `VITE_*` variables: they are public browser configuration.
 
@@ -136,6 +152,7 @@ The merged main removed GitHub Actions checks, so run these checks locally befor
 npm run check
 npm run test:api:browser
 npm run test:auth:e2e
+npm run test:e2e
 ```
 
 `check` verifies generated-file drift, TypeScript, Vitest tests, and the production build. It no longer permits a false green result with zero unit tests. The browser check launches its own development server on `127.0.0.1:5181` with Mock enabled and shuts it down afterward. If Chromium is missing, install it once with `npx playwright install chromium`.
@@ -148,7 +165,7 @@ npm run test:auth:e2e
 
 `tests/component/auth-pages.test.tsx` has 23 account-page integration cases using React StrictMode and the generated SDK through MSW. The five PR #50 regressions use controlled request/cancellation promises to cover stale refreshes, duplicate submissions and retry, sign-out/navigation during cancellation, and refresh/retry guards. `tests/auth-browser/auth-pages.spec.ts` adds six desktop Chromium account flows, including keyboard interaction. `test:auth:e2e` uses an isolated server on port 5182; API browser checks use 5181. Browser tests require those ports to be free and shut down their servers after completion.
 
-The four original `tests/e2e` business scenarios remain skipped placeholders. `npm run test:e2e` is not a completed business-flow acceptance suite yet; use `test:auth:e2e` for D02. No real backend integration, Docker deployment or S3 upload is claimed by these Mock tests.
+The four original `tests/e2e` placeholders are now executable business flows; the manager suite makes five files / seven tests, using an isolated Mock server on port 5183. They cover creation/edit/search/comment, user/engineer lifecycle, Tier 1 escalation, vendor response/request, raw attachment PUT and manager assignment/dashboard. `tests/api/workspace.test.ts` checks canonical schemas and SDK/Mock flows; `tests/component/workspace.test.tsx` checks loading, errors, role boundaries, cache cleanup, cancellation, duplicate submissions and confirmation retry. No real backend integration, Docker deployment or S3 upload is claimed by these Mock tests.
 
 After the 2026-09-24 main sync, generated-file checks, TypeScript, all **69 unit/component tests**, both browser tests and the production build passed. Full and production-only npm audits reported 0 known vulnerabilities. The merged backend's 403 unit/contract tests also passed using an existing isolated Python environment, with one test-library deprecation warning; no real database or AWS tests were run.
 
