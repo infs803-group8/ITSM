@@ -1,6 +1,6 @@
 import { http, HttpResponse } from "msw";
 import type {
-  ErrorBody, ErrorCode, ErrorResponse, LoginRequest, LoginResponse, RegisterRequest,
+  ErrorBody, ErrorCode, ErrorResponse, LoginRequest, LoginResponse, ReferenceDataResponse, RegisterRequest,
   TicketCreateRequest, TicketDetail, TicketDetailResponse, TicketListResponse,
   TicketSummary, UpdateProfileRequest, UserProfile, UserResponse,
 } from "../api/types";
@@ -101,8 +101,19 @@ export const handlers = [
     return HttpResponse.json({ data: user } satisfies UserResponse, { headers: headers(request) });
   }),
 
-  http.get(mockApiUrl("/reference-data"), ({ request }) => authenticatedUser(request)
-    ? HttpResponse.json(fixtures.operations.api12ReferenceData.body, { headers: headers(request) }) : unauthorized(request)),
+  http.get(mockApiUrl("/reference-data"), ({ request }) => {
+    const user = authenticatedUser(request);
+    if (!user) return unauthorized(request);
+    // The canonical example includes internal options. Project a fresh copy for
+    // the baseline USER session; never mutate the shared generated fixture.
+    const body = structuredClone(fixtures.operations.api12ReferenceData.body) as ReferenceDataResponse;
+    if (user.role === "USER") {
+      body.data.ticket_statuses = body.data.ticket_statuses.filter((status) => status !== "PENDING_VENDOR");
+      body.data.comment_visibilities = ["USER_VISIBLE"];
+      body.data.attachment_visibilities = ["USER_VISIBLE"];
+    }
+    return HttpResponse.json(body, { headers: headers(request) });
+  }),
 
   http.post(mockApiUrl("/tickets"), async ({ request }) => {
     const user = authenticatedUser(request);
@@ -126,6 +137,9 @@ export const handlers = [
     if (!user) return unauthorized(request);
     const query = new URL(request.url).searchParams;
     if (validateQuery("api16ListTickets", query)) return mockError(request, 422, "VALIDATION_ERROR", "Check the filter and pagination values.");
+    if (user.role === "USER" && query.get("status") === "PENDING_VENDOR") {
+      return mockError(request, 403, "DATA_SCOPE_DENIED", "The requested status is not visible.");
+    }
     if (query.has("assignee_id")) return mockError(request, 403, "DATA_SCOPE_DENIED", "Assignee filtering is restricted for this role.");
     let tickets = [...mockState.tickets.values()].filter((ticket) => ticket.requester?.user_id === user.user_id);
     for (const field of ["status", "category", "priority"] as const) {
