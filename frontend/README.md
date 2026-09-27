@@ -19,7 +19,17 @@ npm run dev
 
 Open the URL printed by Vite, normally `http://localhost:5173`. Keep that terminal running. `npm run test:unit` runs tests and exits; it does **not** start the website.
 
-This branch supplies the API foundation. The home page is still the team's original scaffold; the older prototype's UI has not been copied in. Login/ticket pages are separate work.
+## Account pages (D02)
+
+D02 starts from merged main `6bdcdf8` on `feature/WBS-D02-auth-pages`. It adds desktop web pages at `/login`, `/register` and `/profile`, plus a shared yellow/black/white theme, workspace layout, session management and route guards. The older standalone prototype has not been copied over the repository. Ticket pages remain future work.
+
+In local Mock mode, open the site, select **Use demo account**, then **Sign in**. Registration and profile editing also work against the existing USER Mock. In real-backend mode the same pages call generated API-08/09/10/11 operations; actual Python/database integration is still to be verified with the team. There is no frontend role selector. Only engineer accounts receive the availability control.
+
+Profile saves cancel and await the current account's pending profile query before sending PATCH, so a delayed refresh cannot overwrite the saved response. A synchronous submission lock covers cancellation and the write; leaving the page or signing out cancels the pending operation. Refresh and read-error retry share a guard, and automatic focus/reconnect refetches are disabled for this editable profile page. Save failures release the lock so users can retry.
+
+`antd` **6.6.5** and `@ant-design/icons` **6.3.4** are exact-pinned additions. Existing direct dependency versions remain unchanged. Desktop viewports are the acceptance target; mobile-specific layouts and tests are not included.
+
+See [D02-HANDOFF.md](D02-HANDOFF.md) for the change map, test commands, screenshots and remaining scope. D02 and the PR #49 review fixes are submitted together for review; merging into main remains a separate team decision.
 
 ## Generated API (D01)
 
@@ -76,7 +86,7 @@ The first `.data` is Axios's HTTP body; the second is the contract's `data` fiel
 
 `src/api/httpClient.ts` applies the base URL, 10-second timeout, `X-Request-ID`, and normalized errors. Public health/register/login operations do not automatically carry a bearer token. HTTP errors retain the safe message, code, details and request ID; network, timeout and cancellation errors are distinguished. `ApiErrorNotice` is an optional accessible display component; it does not expose raw details or stack traces.
 
-Tokens live **only in memory** (`tokenStorage.ts`); page reload requires sign-in again. A 401 for the current bearer token clears it and notifies `onUnauthorized`. The future authentication provider must subscribe to clear user/query state and navigate to login. Failed public logins, 403 responses and stale requests from an older session do not clear a newer token. `logout()` only clears the local token: the contract has no logout or refresh endpoint. Do not invent automatic refresh/retry of writes.
+Tokens live **only in memory** (`tokenStorage.ts`); page reload requires sign-in again. A 401 for the current bearer token clears it and notifies `onUnauthorized`. D02's `AuthProvider` subscribes to clear user/query state and return to login. Pages should call the provider's `signOut()` rather than only the low-level `logout()` helper, so account caches are cleared too. Failed public logins, 403 responses and stale requests from an older session do not clear a newer token. Logout is local: the contract has no logout or refresh endpoint. Do not invent automatic refresh/retry of writes.
 
 For future S3 uploads, use the returned presigned URL and signed headers with a separate request (for example native `fetch`); never send the API bearer token to S3.
 
@@ -104,11 +114,13 @@ The baseline supports **USER only**:
 | 01 | Contract-shaped health response |
 | 08–09 | Register, duplicate email, login and invalid credentials |
 | 10–11 | Read/update own profile; reject USER availability changes |
-| 12 | Contract reference data |
+| 12 | USER-scoped reference data: no PENDING_VENDOR option; only USER_VISIBLE comment/attachment visibility |
 | 15 | Create own ticket using the deterministic UNASSIGNED/no-eligible-engineer branch |
 | 16–17 | Own ticket list/detail, filters, sorting, pagination, and scope-safe 404 |
 
 Fake demo account: `user@example.com` / `MockPass123!`. This is **not** a real backend account or a real JWT. Accounts, tokens and tickets reset on page reload. Request bodies and query parameters are validated against generated contract schemas; additional JSON fields, invalid enum casing and invalid pagination are rejected. The USER Mock strips engineer-only actions from the example ticket.
+
+PR #49 review follow-up (included in D02): API-12 clones the canonical fixture before filtering USER-only options, leaving other reference settings and the generated fixture unchanged. API-16 rejects an explicit USER `status=PENDING_VENDOR` filter with `403 DATA_SCOPE_DENIED` after query validation. That response retains the request ID and must not clear the token or invoke `onUnauthorized`. SDK/MSW and browser regressions protect these rules; existing legal filtering, pagination and user isolation tests remain in place.
 
 The other operations intentionally fail locally in Mock mode; they do not fall through to a real server. Attachments/S3, dashboards, comments, engineering/vendor workflows, auto-assignment, SLA timers, password-policy details beyond the schema and production authentication are **not simulated**. Some original success examples represent different roles: example-schema tests are not evidence of full authorization or workflow correctness.
 
@@ -123,6 +135,7 @@ The merged main removed GitHub Actions checks, so run these checks locally befor
 ```powershell
 npm run check
 npm run test:api:browser
+npm run test:auth:e2e
 ```
 
 `check` verifies generated-file drift, TypeScript, Vitest tests, and the production build. It no longer permits a false green result with zero unit tests. The browser check launches its own development server on `127.0.0.1:5181` with Mock enabled and shuts it down afterward. If Chromium is missing, install it once with `npx playwright install chromium`.
@@ -131,9 +144,11 @@ npm run test:api:browser
 - `tests/api/client.test.ts`: actual generated SDK → Axios → MSW requests, token behavior, validation, errors, query parameters, USER isolation and test-only escalation-success/detail-404 handling.
 - `tests/api/errorHandler.test.ts`: HTTP, network, timeout, cancellation and production Mock guard.
 - `tests/component/ApiErrorNotice.test.tsx`: accessible message/request ID, retry click, no raw details.
-- `tests/api-browser/api-foundation.spec.ts`: two real Chromium/Service Worker checks; not full user-page flows.
+- `tests/api-browser/api-foundation.spec.ts`: three real Chromium/Service Worker checks, including the PR #49 USER-permission regression; not full user-page flows.
 
-The four original `tests/e2e` business scenarios remain skipped placeholders. `npm run test:e2e` is not a completed business-flow acceptance suite yet. No backend integration, Docker deployment or S3 upload is claimed by these Mock tests.
+`tests/component/auth-pages.test.tsx` has 23 account-page integration cases using React StrictMode and the generated SDK through MSW. The five PR #50 regressions use controlled request/cancellation promises to cover stale refreshes, duplicate submissions and retry, sign-out/navigation during cancellation, and refresh/retry guards. `tests/auth-browser/auth-pages.spec.ts` adds six desktop Chromium account flows, including keyboard interaction. `test:auth:e2e` uses an isolated server on port 5182; API browser checks use 5181. Browser tests require those ports to be free and shut down their servers after completion.
+
+The four original `tests/e2e` business scenarios remain skipped placeholders. `npm run test:e2e` is not a completed business-flow acceptance suite yet; use `test:auth:e2e` for D02. No real backend integration, Docker deployment or S3 upload is claimed by these Mock tests.
 
 After the 2026-09-24 main sync, generated-file checks, TypeScript, all **69 unit/component tests**, both browser tests and the production build passed. Full and production-only npm audits reported 0 known vulnerabilities. The merged backend's 403 unit/contract tests also passed using an existing isolated Python environment, with one test-library deprecation warning; no real database or AWS tests were run.
 

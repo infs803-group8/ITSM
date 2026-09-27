@@ -11,6 +11,8 @@ import type { RegisterRequest, TicketCreateRequest } from "../../src/api/types";
 import { login, logout } from "../../src/api/auth";
 import { tokenStorage } from "../../src/api/tokenStorage";
 import { onUnauthorized } from "../../src/api/httpClient";
+import { ApiRequestError } from "../../src/api/errorHandler";
+import fixtures from "../../src/mocks/fixtures.generated.json";
 import { handlers, mockApiUrl, mockError } from "../../src/mocks/handlers";
 import { mockCredentials, mockState, resetMockState } from "../../src/mocks/state";
 import { assertResponse, successExample } from "./contract";
@@ -117,6 +119,66 @@ describe("generated SDK through the real Axios + MSW boundary", () => {
     expect(result.data.data.priorities).toEqual(["LOW", "MEDIUM", "HIGH", "URGENT"]);
     expect(result.data.data.attachment.max_size_bytes).toBe(10_485_760);
     assertResponse("api12ReferenceData", 200, result.data);
+  });
+
+  it("returns USER reference options without changing the shared generated fixture", async () => {
+    const original = structuredClone(fixtures.operations.api12ReferenceData.body);
+    await login(mockCredentials);
+    const result = await api12ReferenceData();
+    const expected = {
+      ...original.data,
+      ticket_statuses: original.data.ticket_statuses.filter((status) => status !== "PENDING_VENDOR"),
+      comment_visibilities: ["USER_VISIBLE"],
+      attachment_visibilities: ["USER_VISIBLE"],
+    };
+    expect(result.data.data).toEqual(expected);
+    expect(result.data.data.ticket_statuses).not.toContain("PENDING_VENDOR");
+    assertResponse("api12ReferenceData", 200, result.data);
+    expect(fixtures.operations.api12ReferenceData.body).toEqual(original);
+    // A consumer changing its response must not affect the next caller either.
+    result.data.data.ticket_statuses.length = 0;
+    expect((await api12ReferenceData()).data.data).toEqual(expected);
+    expect(fixtures.operations.api12ReferenceData.body).toEqual(original);
+  });
+
+  it("forbids USER PENDING_VENDOR filtering without invalidating the session", async () => {
+    await login(mockCredentials);
+    const token = tokenStorage.get();
+    const listener = vi.fn();
+    const unsubscribe = onUnauthorized(listener);
+    const requestId = "550e8400-e29b-41d4-a716-446655440049";
+    try {
+      const result = await api16ListTickets({ query: { status: "PENDING_VENDOR" }, headers: { "X-Request-ID": requestId } })
+        .catch((error: unknown) => error);
+      expect(result).toBeInstanceOf(ApiRequestError);
+      expect(result).toMatchObject({ kind: "http", status: 403, code: "DATA_SCOPE_DENIED", requestId });
+      expect(tokenStorage.get()).toBe(token);
+      expect(listener).not.toHaveBeenCalled();
+      expect((await api10GetMyProfile()).data.data.role).toBe("USER");
+    } finally { unsubscribe(); }
+  });
+
+  it("checks authentication and query format before the USER status restriction", async () => {
+    await expect(api12ReferenceData()).rejects.toMatchObject({ status: 401, code: "INVALID_ACCESS_TOKEN" });
+    await expect(api16ListTickets({ query: { status: "PENDING_VENDOR" } })).rejects.toMatchObject({ status: 401 });
+    await login(mockCredentials);
+    await expect(api16ListTickets({ query: { status: "PENDING_VENDOR", page: 0 } }))
+      .rejects.toMatchObject({ status: 422, code: "VALIDATION_ERROR" });
+  });
+
+  it("continues to accept every status offered to USER", async () => {
+    await login(mockCredentials);
+    const reference = await api12ReferenceData();
+    const statuses = reference.data.data.ticket_statuses.filter((status) => status !== "PENDING_VENDOR");
+    expect(statuses).toEqual(["UNASSIGNED", "ASSIGNED", "IN_PROGRESS", "PENDING_USER", "RESOLVED", "REOPENED", "CLOSED"]);
+    for (const status of statuses) {
+      const result = await api16ListTickets({ query: { status, page: 1, page_size: 1 } });
+      expect(result.status).toBe(200);
+      expect(result.data.data.every((ticket) => ticket.status === status)).toBe(true);
+      expect(result.data.meta.page).toBe(1);
+      expect(result.data.meta.page_size).toBe(1);
+      assertResponse("api16ListTickets", 200, result.data);
+    }
   });
 
   it("creates, reads, filters and paginates tickets with stable null fields", async () => {
