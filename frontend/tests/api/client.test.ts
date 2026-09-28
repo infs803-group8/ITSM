@@ -10,7 +10,7 @@ import {
 import type { RegisterRequest, TicketCreateRequest } from "../../src/api/types";
 import { login, logout } from "../../src/api/auth";
 import { tokenStorage } from "../../src/api/tokenStorage";
-import { onUnauthorized } from "../../src/api/httpClient";
+import { httpClient, onUnauthorized } from "../../src/api/httpClient";
 import { ApiRequestError } from "../../src/api/errorHandler";
 import fixtures from "../../src/mocks/fixtures.generated.json";
 import { handlers, mockApiUrl, mockError } from "../../src/mocks/handlers";
@@ -264,7 +264,13 @@ describe("generated SDK through the real Axios + MSW boundary", () => {
 
   it("fails unsupported mock operations locally instead of falling through to the backend", async () => {
     await login(mockCredentials);
-    await expect(api06DashboardSummary()).rejects.toMatchObject({ kind: "network", code: "NETWORK_ERROR" });
+    await expect(httpClient.get("/not-a-contract-operation")).rejects.toMatchObject({ kind: "network", code: "NETWORK_ERROR" });
+  });
+
+  it("denies USER access to the now-supported dashboard without clearing the session", async () => {
+    await login(mockCredentials);
+    await expect(api06DashboardSummary()).rejects.toMatchObject({ status: 403, code: "DATA_SCOPE_DENIED" });
+    expect(tokenStorage.get()).not.toBeNull();
   });
 
   it("logout removes the bearer token without calling a nonexistent endpoint", async () => {

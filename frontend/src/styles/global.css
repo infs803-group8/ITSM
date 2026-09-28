@@ -7,8 +7,8 @@ a { color: inherit; }
 button, input { font: inherit; }
 button, a, input { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 3px solid #917600; outline-offset: 3px; }
-.skip-link { position: fixed; z-index: 1000; left: 12px; top: -100px; padding: 12px; background: #f4c400; color: #14191e; }
-.skip-link:focus { top: 12px; }
+.skip-link { position: fixed; z-index: 1000; left: 12px; top: 12px; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; background: #f4c400; color: #14191e; }
+.skip-link:focus { width: auto; height: auto; padding: 12px; clip-path: none; }
 .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1.8px; margin: 0 0 18px; }
 .brand { display: flex; align-items: center; gap: 12px; color: #fff; text-decoration: none; flex-shrink: 0; }
 .brand:hover { color: #fff; }
@@ -118,6 +118,59 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .route-message { margin: 12vh auto; padding: 30px; max-width: 650px; }
 .route-message h1 { font-size: 28px; margin-bottom: 24px; }
 .loading-panel { padding: 28px; color: #69747c; }
+.primary-link, .secondary-link { display: inline-block; padding: 10px 16px; font-size: 13px; font-weight: 600; text-decoration: none; border: 1px solid #252b30; }
+.primary-link { background: #f4c400; color: #161a1e; }
+.secondary-link { background: white; }
+.back-link { display: inline-block; margin-bottom: 24px; font-size: 13px; }
+.filter-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; background: #fff; border: 1px solid #dde1e4; padding: 20px; margin-bottom: 24px; }
+.filter-bar label, .work-form label { display: flex; flex-direction: column; gap: 8px; font-size: 12px; font-weight: 600; }
+.filter-bar input, .filter-bar select, .work-form input:not([type=checkbox]), .work-form select, .work-form textarea { border: 1px solid #bfc7cd; border-radius: 2px; background: white; padding: 10px 12px; font: inherit; color: #20272d; }
+.filter-bar input { width: 170px; }
+.work-form fieldset { padding: 0; border: 0; margin: 0; min-width: 0; }
+.work-form label { margin-bottom: 20px; }
+.work-form textarea { resize: vertical; }
+.work-form .check-label { flex-direction: row; align-items: center; }
+.form-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.table-panel { overflow-x: auto; }
+.data-table { border-collapse: collapse; width: 100%; font-size: 12px; text-align: left; }
+.data-table th { padding: 15px 18px; background: #f0f2f3; border-bottom: 2px solid #cdd3d8; color: #59656e; font-weight: 650; white-space: nowrap; }
+.data-table td { padding: 19px 18px; border-bottom: 1px solid #e4e8eb; vertical-align: top; }
+.data-table td:first-child { min-width: 220px; max-width: 360px; overflow-wrap: anywhere; }
+.data-table small, .thread-entry small, .attachment-row small { display: block; color: #697681; font-size: 11px; margin: 6px 0; }
+.data-table strong { display: block; }
+.data-table a { text-decoration: none; }
+.data-table a:hover { text-decoration: underline; }
+.data-table tbody tr:hover { background: #fffdf3; }
+.pager { display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 18px 0; font-size: 12px; }
+.table-panel .pager { padding: 18px; }
+.empty-state { padding: 36px; text-align: center; color: #63717c; }
+.status-chip { display: inline-block; border: 1px solid #d4dade; padding: 4px 7px; font-size: 11px; background: #f2f4f5; white-space: nowrap; }
+.status-at_risk, .status-pending_user, .status-pending_vendor { background: #fff4bd; color: #695000; border-color: #ddc978; }
+.status-overdue { background: #fff0ee; color: #a92317; border-color: #e9b6b0; }
+.status-met, .status-resolved { background: #ebf5ef; color: #286343; border-color: #b8d4c4; }
+.ticket-overview { display: flex; align-items: center; flex-wrap: wrap; gap: 22px; padding: 18px 22px; border: 1px solid #dde1e4; border-top: 3px solid #f4c400; background: #fff; margin-bottom: 24px; font-size: 12px; }
+.ticket-grid { display: grid; grid-template-columns: minmax(0, 1fr) 275px; gap: 24px; align-items: start; }
+.ticket-main > .panel, .ticket-aside > .panel { margin-bottom: 22px; }
+.pre-wrap { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+.action-list { display: flex; flex-direction: column; gap: 10px; }
+.action-list .ant-btn { white-space: normal; height: auto; min-height: 38px; }
+.warning-note { background: #fff9de; border-left: 3px solid #cda900; padding: 16px; line-height: 1.7; font-size: 13px; }
+.tab-bar { display: flex; gap: 8px; margin: 25px 0 16px; }
+.thread-entry { border-left: 3px solid #dedfe1; padding: 4px 0 14px 16px; margin-bottom: 20px; font-size: 13px; }
+.attachment-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 15px 0; border-bottom: 1px solid #e4e8eb; }
+.attachment-row strong { overflow-wrap: anywhere; }
+.snapshot { font-size: 12px; color: #63717c; margin-bottom: 22px; }
+.metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; margin-bottom: 26px; }
+.metric { display: flex; flex-direction: column; gap: 18px; background: white; border: 1px solid #dce1e4; border-top: 4px solid #2b3137; padding: 22px; text-decoration: none; }
+.metric span { font-size: 12px; color: #59666f; }
+.metric strong { font-size: 38px; font-weight: 650; }
+.metric.at-risk { border-top-color: #e6bd00; }.metric.overdue { border-top-color: #b83629; }
+.lifecycle-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: #e2e6e9; }
+.lifecycle-grid > div { background: white; padding: 25px; display: flex; flex-direction: column; align-items: start; gap: 18px; }
+.lifecycle-grid strong { font-size: 24px; }
+.success-message { padding: 12px 16px; background: #eef6ef; border-left: 3px solid #447954; font-size: 13px; }
+.mock-notice { flex-wrap: wrap; }
+.mock-notice select { padding: 6px; max-width: 190px; border: 1px solid #bca44e; background: #fff; color: #222; }
 @media (max-width: 1100px) {
   .auth-rail { padding-left: 30px; padding-right: 30px; }
   .auth-main { padding: 0 9%; }

@@ -1,5 +1,57 @@
-import { test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { signIn, switchActor, openTicket } from "./helpers";
 
-test.skip("engineer workflow", async () => {
-  // Implement after the related screens and mock data are available.
+test("information request, resume, resolution, reopen and permanent close", async ({ page }) => {
+  await page.goto("/login"); await signIn(page, "tier1@example.com"); await openTicket(page);
+  await page.getByRole("button", { name: "Request information", exact: true }).click();
+  await page.getByLabel("Message", { exact: true }).fill("Please confirm the Wi-Fi adapter model.");
+  await page.getByRole("button", { name: "Confirm Request user info", exact: true }).click();
+  await expect(page.getByText(/Information required · Respond before/)).toBeVisible();
+  await switchActor(page, "user@example.com"); await openTicket(page);
+  await expect(page.getByRole("button", { name: "Add comment" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Provide information / issue persists" }).click();
+  await page.getByLabel("Message", { exact: true }).fill("Adapter model AX210.");
+  await page.getByRole("button", { name: "Confirm Resume", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Ticket updated");
+  await switchActor(page, "tier1@example.com"); await openTicket(page);
+  await page.getByRole("button", { name: "Submit resolution", exact: true }).click();
+  await page.getByLabel("Resolution summary", { exact: true }).fill("Install the updated driver.");
+  await page.getByRole("button", { name: "Confirm Resolve", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Resolution", exact: true })).toBeVisible();
+  await switchActor(page, "user@example.com"); await openTicket(page);
+  await page.getByRole("button", { name: "Confirm resolution", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm Confirm resolution", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Reopen ticket", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Reopen ticket", exact: true }).click();
+  await page.getByLabel("Reason", { exact: true }).fill("The connection drops again.");
+  await page.getByRole("button", { name: "Confirm Reopen", exact: true }).click();
+  await switchActor(page, "tier1@example.com"); await openTicket(page);
+  await page.getByRole("button", { name: "Start handling", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm Start", exact: true }).click();
+  await page.getByRole("button", { name: "Submit resolution", exact: true }).click();
+  await page.getByLabel("Resolution summary").fill("Replace the adapter.");
+  await page.getByRole("button", { name: "Confirm Resolve", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Resolution", exact: true })).toBeVisible();
+  await switchActor(page, "user@example.com"); await openTicket(page);
+  await page.getByRole("button", { name: "Confirm resolution", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm Confirm resolution", exact: true }).click();
+  await page.getByRole("button", { name: "Close ticket", exact: true }).click();
+  await expect(page.getByText(/Closing is permanent/)).toBeVisible();
+  await page.getByLabel("I understand this action is irreversible.").check();
+  await page.getByRole("button", { name: "Confirm permanent close", exact: true }).click();
+  await expect(page.getByText(/This ticket is read-only/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reopen ticket", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add comment", exact: true })).toHaveCount(0);
+});
+
+test("Tier 1 escalation removes detail access and Tier 2 receives the ticket", async ({ page }) => {
+  await page.goto("/login"); await signIn(page, "tier1@example.com"); await openTicket(page);
+  await page.screenshot({ path: "docs/evidence/d03-engineer-workspace.png", fullPage: true });
+  await page.getByRole("button", { name: "Escalate to Tier 2", exact: true }).click();
+  await page.getByLabel("Engineer", { exact: true }).selectOption("2002");
+  await page.getByRole("button", { name: "Confirm Escalate", exact: true }).click();
+  await expect(page).toHaveURL(/\/tickets$/); await expect(page.getByRole("status")).toContainText("escalated to Tier 2");
+  await expect(page.getByRole("link", { name: /Cannot connect to office Wi-Fi/ })).toHaveCount(0);
+  await switchActor(page, "tier2@example.com"); await openTicket(page);
+  await expect(page.getByRole("button", { name: "Start handling", exact: true })).toBeVisible();
 });
