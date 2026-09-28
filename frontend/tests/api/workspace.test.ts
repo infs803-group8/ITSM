@@ -67,7 +67,13 @@ describe("D03 workspace SDK contracts and role boundaries", () => {
     await expect(api.api19ListComments({ path: vendorPath })).rejects.toMatchObject({ status: 403 });
     const response = await api.api27VendorResponse({ path: vendorPath, body: { message: "Vendor findings" } }); assertResponse("api27VendorResponse", 200, response.data);
     expect(response.data.data.ticket.status).toBe("IN_PROGRESS"); expect(response.data.data.ticket.available_actions).toEqual([]);
+    expect(response.data.data.vendor_response?.message).toBe("Vendor findings");
+    const vendorEvents = (await api.api32ListEvents({ path: vendorPath })).data.data;
+    expect(vendorEvents.find((entry) => entry.event_type === "VENDOR_RESPONDED")?.metadata).toEqual({});
     await signIn("tier2@example.com");
+    const engineerEvents = (await api.api32ListEvents({ path: vendorPath })).data.data;
+    expect(engineerEvents.find((entry) => entry.event_type === "VENDOR_RESPONDED")?.metadata).toEqual({});
+    expect(JSON.stringify((await api.api17GetTicket({ path: vendorPath })).data)).not.toContain("Vendor findings");
     assertResponse("api14ListVendors", 200, (await api.api14ListVendors()).data);
     const requested = await api.api26CreateVendorRequest({ path: vendorPath, body: { vendor_org_id: 1, vendor_message: "Another safe request" } });
     expect(requested.status).toBe(201); assertResponse("api26CreateVendorRequest", 201, requested.data);

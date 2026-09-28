@@ -7,7 +7,7 @@ import { ApiErrorNotice } from "../../components/ApiErrorNotice";
 import { date, label, Pager, QueryNotice, useReference, useWorkspaceKey, useWrite } from "./shared";
 
 export function CommentsPanel({ ticket, onChange }: { ticket: TicketDetail; onChange: () => void }) {
-  const key = useWorkspaceKey(); const write = useWrite(); const reference = useReference(); const [page, setPage] = useState(1);
+  const key = useWorkspaceKey(); const write = useWrite(ticket.ticket_id); const reference = useReference(); const [page, setPage] = useState(1);
   const [message, setMessage] = useState(""); const [validation, setValidation] = useState("");
   const query = useQuery({ queryKey: [...key, "ticket", ticket.ticket_id, "comments", page], queryFn: async ({ signal }) => (await api19ListComments({ path: { id: ticket.ticket_id }, query: { page, page_size: 20 }, signal })).data });
   async function submit(event: FormEvent<HTMLFormElement>) {

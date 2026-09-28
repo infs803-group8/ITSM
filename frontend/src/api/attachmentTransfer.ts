@@ -1,11 +1,21 @@
-import type { AttachmentConfig, PresignData } from "./types";
+import type { AttachmentConfig, PresignData, PresignRequest } from "./types";
 
-export function validateAttachment(file: File, config: AttachmentConfig): string | null {
-  if (file.size < 1 || file.size > config.max_size_bytes) return "Choose a non-empty file no larger than 10 MiB.";
+type AttachmentCheck = { error: string; contentType?: never } | { error: null; contentType: PresignRequest["content_type"] };
+export function resolveAttachment(file: File, config: AttachmentConfig): AttachmentCheck {
+  if (file.size < 1 || file.size > config.max_size_bytes) return { error: "Choose a non-empty file no larger than 10 MiB." };
+  if (file.name.length > 255) return { error: "The file name must not exceed 255 characters." };
   const extension = file.name.toLowerCase().split(".").pop();
-  if (!config.allowed_types.some((rule) => rule.extension.replace(/^\./, "") === extension && rule.content_type === file.type)) return "The file extension and content type must match one of the allowed formats shown above.";
-  if (file.name.length > 255) return "The file name must not exceed 255 characters.";
-  return null;
+  const rule = config.allowed_types.find((item) => file.name.includes(".") && item.extension.replace(/^\./, "").toLowerCase() === extension);
+  // Browsers may leave .log MIME blank. Only API-12's allowlist may supply it;
+  // a non-empty, mismatched browser MIME must never be silently replaced.
+  const contentType = file.type || rule?.content_type;
+  if (!rule || rule.content_type !== contentType || (contentType !== "image/png" && contentType !== "image/jpeg" && contentType !== "application/pdf" && contentType !== "text/plain")) {
+    return { error: "The file extension and content type must match one of the allowed formats shown above." };
+  }
+  return { error: null, contentType };
+}
+export function validateAttachment(file: File, config: AttachmentConfig): string | null {
+  return resolveAttachment(file, config).error;
 }
 export function safeTransferUrl(value: string): string {
   const url = new URL(value);

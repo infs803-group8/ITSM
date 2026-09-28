@@ -2,26 +2,26 @@ import { useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Progress } from "antd";
 import { api02CreateAttachmentUpload, api03CompleteAttachmentUpload, api04ListAttachments, api05GetAttachmentDownload } from "../../api/generated/sdk.gen";
-import type { AttachmentVisibility, PresignData, PresignRequest, TicketDetail } from "../../api/types";
-import { putAttachment, safeTransferUrl, validateAttachment } from "../../api/attachmentTransfer";
+import type { AttachmentVisibility, PresignData, TicketDetail } from "../../api/types";
+import { putAttachment, safeTransferUrl, resolveAttachment } from "../../api/attachmentTransfer";
 import { ApiErrorNotice } from "../../components/ApiErrorNotice";
-import { date, label, Pager, QueryNotice, useReference, useWorkspaceKey, useWrite } from "./shared";
+import { date, label, Pager, QueryNotice, useReference, useWorkspaceKey, useWrite, useDownload } from "./shared";
 
 export function AttachmentsPanel({ ticket, onChange }: { ticket: TicketDetail; onChange: () => void }) {
-  const key = useWorkspaceKey(); const reference = useReference(); const write = useWrite(); const download = useWrite();
+  const key = useWorkspaceKey(); const reference = useReference(); const write = useWrite(ticket.ticket_id); const download = useDownload();
   const [page, setPage] = useState(1); const [file, setFile] = useState<File | null>(null); const [validation, setValidation] = useState("");
   const [progress, setProgress] = useState(0); const [uploaded, setUploaded] = useState<PresignData | null>(null); const [success, setSuccess] = useState("");
   const query = useQuery({ queryKey: [...key, "ticket", ticket.ticket_id, "attachments", page], queryFn: async ({ signal }) => (await api04ListAttachments({ path: { id: ticket.ticket_id }, query: { page, page_size: 20 }, signal })).data });
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!file || !reference.data) return;
-    const problem = validateAttachment(file, reference.data.attachment); if (problem) { setValidation(problem); return; }
+    const checked = resolveAttachment(file, reference.data.attachment); if (checked.error !== null) { setValidation(checked.error); return; }
     if (uploaded && Date.parse(uploaded.expires_at) <= Date.now()) { setValidation("This upload session expired. Start a new upload."); return; }
     const visibility = new FormData(event.currentTarget).get("visibility") as AttachmentVisibility;
     setValidation(""); setSuccess("");
     await write.run(async (signal) => {
       let session = uploaded;
       if (!session) {
-        session = (await api02CreateAttachmentUpload({ path: { id: ticket.ticket_id }, body: { file_name: file.name, content_type: file.type as PresignRequest["content_type"], size_bytes: file.size, visibility }, signal })).data.data;
+        session = (await api02CreateAttachmentUpload({ path: { id: ticket.ticket_id }, body: { file_name: file.name, content_type: checked.contentType, size_bytes: file.size, visibility }, signal })).data.data;
         await putAttachment(file, session, signal, setProgress); signal.throwIfAborted(); setUploaded(session);
       }
       return api03CompleteAttachmentUpload({ path: { id: ticket.ticket_id }, body: { upload_id: session.upload_id }, signal });

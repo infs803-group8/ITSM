@@ -7,7 +7,7 @@ import { ApiErrorNotice } from "../../components/ApiErrorNotice";
 import { label, PageHeading, QueryNotice, useReference, useWrite } from "./shared";
 
 export function TicketForm({ ticket, onDone }: { ticket?: TicketDetail; onDone?: () => void }) {
-  const reference = useReference(); const write = useWrite(); const navigate = useNavigate();
+  const reference = useReference(); const write = useWrite(ticket?.ticket_id); const navigate = useNavigate();
   const [validation, setValidation] = useState("");
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const values = new FormData(event.currentTarget);

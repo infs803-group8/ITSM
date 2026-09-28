@@ -14,7 +14,7 @@ export const actionLabels: Partial<Record<AvailableAction, string>> = {
 };
 type WorkflowAction = keyof typeof actionLabels;
 export function WorkflowPanel({ ticket, action, onDone, onCancel }: { ticket: TicketDetail; action: WorkflowAction; onDone: (escalated: boolean) => void; onCancel: () => void }) {
-  const key = useWorkspaceKey(); const write = useWrite(); const [page, setPage] = useState(1); const [invalid, setInvalid] = useState("");
+  const key = useWorkspaceKey(); const write = useWrite(ticket.ticket_id); const [page, setPage] = useState(1); const [invalid, setInvalid] = useState("");
   const needsEngineer = action === "ASSIGN" || action === "ESCALATE";
   const tier2 = action === "ESCALATE" || ticket.sla?.status === "OVERDUE" || ticket.assignee?.tier === "TIER2";
   const engineers = useQuery({ queryKey: [...key, "assignees", ticket.category, tier2, page], enabled: needsEngineer,
@@ -26,10 +26,11 @@ export function WorkflowPanel({ ticket, action, onDone, onCancel }: { ticket: Ti
   useEffect(() => { setPage(1); }, [action]);
   const textRequired = ["REQUEST_USER_INFO", "RESUME", "REQUEST_VENDOR", "VENDOR_RESPONSE", "RESOLVE", "REOPEN"].includes(action);
   const textName = action === "RESOLVE" ? "Resolution summary" : action === "REQUEST_VENDOR" ? "Vendor-safe message" : ["ASSIGN", "ESCALATE", "REOPEN", "CLOSE"].includes(action) ? "Reason" : "Message";
-  const max = ["ASSIGN", "ESCALATE", "REOPEN"].includes(action) ? 1000 : action === "RESOLVE" ? 5000 : 4000;
+  const max = ["ASSIGN", "ESCALATE", "CLOSE"].includes(action) ? 1000 : action === "RESOLVE" ? 5000 : 4000;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const values = new FormData(event.currentTarget); const message = String(values.get("message") ?? "").trim();
     if (textRequired && !message) { setInvalid("Enter a message, not only spaces."); return; }
+    if (message.length > max) { setInvalid(`Enter no more than ${max} characters.`); return; }
     if (action === "CLOSE" && values.get("acknowledge") !== "on") { setInvalid("Acknowledge that closing is permanent."); return; }
     setInvalid("");
     await write.run(async (signal) => {

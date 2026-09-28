@@ -114,7 +114,9 @@ export function createWorkspaceHandlers({ url, authenticatedUser, error }: {
       if (action === "VENDOR_RESPONSE") { ticket.status = "IN_PROGRESS"; ticket.vendor_request!.status = "RESPONDED"; ticket.vendor_request!.responded_at = now(); }
       ticket.updated_at = now(); ticket.display_status = ticket.status.toLowerCase().replaceAll("_", " ");
       const scope = action === "REQUEST_VENDOR" || action === "VENDOR_RESPONSE" ? "VENDOR_SCOPE" : "USER_VISIBLE";
-      const eventId = event(ticket, user, eventTypes[action]!, scope, action === "VENDOR_RESPONSE" ? { message: body.message } : {});
+      // The backend records an empty audit metadata object, not the reply body.
+      // Persisted vendor response/history reads remain blocked on Q03's contract.
+      const eventId = event(ticket, user, eventTypes[action]!, scope, {});
       const projected = projectTicket(ticket, user);
       return json(request, { data: { action, ticket: projected, event_id: eventId, comment_id: commentId, vendor_request: projected.vendor_request,
         vendor_response: action === "VENDOR_RESPONSE" ? { vendor_response_id: eventId, vendor_request_id: ticket.vendor_request!.vendor_request_id, message: body.message, created_at: now() } : null } }, fixtures.operations[operation].status);

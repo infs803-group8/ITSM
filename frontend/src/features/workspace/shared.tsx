@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type Query } from "@tanstack/react-query";
 import { Button } from "antd";
 import { useAuth } from "../auth/AuthProvider";
 import { api12ReferenceData } from "../../api/generated/sdk.gen";
@@ -17,7 +17,7 @@ export function useReference() {
 }
 // One synchronous lock covers cancellation, HTTP writes and cache invalidation.
 // Aborting on unmount prevents late responses from restoring a previous session.
-export function useWrite() {
+function useOperation(isWrite: boolean, ticketId?: number) {
   const queryClient = useQueryClient();
   const key = useWorkspaceKey();
   const request = useRef<AbortController | null>(null);
@@ -28,26 +28,46 @@ export function useWrite() {
     if (request.current) return;
     const controller = new AbortController(); request.current = controller;
     setBusy(true); setError(null);
+    const affected = (query: Query) => key.every((part, index) => query.queryKey[index] === part) &&
+      (["tickets", "dashboard", "overdue", "assignees"].includes(String(query.queryKey[3])) ||
+        (ticketId !== undefined && query.queryKey[3] === "ticket" && query.queryKey[4] === ticketId));
+    const cancelledReads = new Set<Query>();
+    const cancelAffected = async () => {
+      for (const query of queryClient.getQueryCache().findAll({ predicate: affected })) {
+        if (query.state.fetchStatus === "fetching") cancelledReads.add(query);
+      }
+      await queryClient.cancelQueries({ predicate: affected });
+    };
+    let saved = false;
     try {
-      await queryClient.cancelQueries({ queryKey: key });
+      if (isWrite) await cancelAffected();
       controller.signal.throwIfAborted();
       const result = await work(controller.signal);
       controller.signal.throwIfAborted();
       // A manual read may have started while the write was in flight.
-      await queryClient.cancelQueries({ queryKey: key });
+      if (isWrite) await cancelAffected();
       controller.signal.throwIfAborted();
-      await queryClient.invalidateQueries({ queryKey: key, refetchType: "none" });
+      if (isWrite) await queryClient.invalidateQueries({ predicate: affected, refetchType: "none" });
       controller.signal.throwIfAborted();
+      saved = true;
       success(result);
     } catch (failure) {
       if (!controller.signal.aborted) setError(failure);
     } finally {
+      if (isWrite && !controller.signal.aborted) {
+        // Resume interrupted active reads even when the write fails. On success
+        // refresh affected views, joining any refresh started by the callback.
+        void queryClient.refetchQueries({ predicate: (query) => affected(query) && (saved || cancelledReads.has(query)), type: "active" }, { cancelRefetch: false });
+      }
       if (!controller.signal.aborted) setBusy(false);
       if (request.current === controller) request.current = null;
     }
   }
   return { run, busy, error, clearError: () => setError(null) };
 }
+export function useWrite(ticketId?: number) { return useOperation(true, ticketId); }
+// Download URL reads need the same lock/abort protection, but no cache mutation.
+export function useDownload() { return useOperation(false); }
 export function PageHeading({ title, note, children }: { title: string; note?: string; children?: ReactNode }) {
   return <div className="page-heading"><div><p className="eyebrow">SERVICE OPERATIONS</p><h1>{title}</h1><p>{note}</p></div>{children}</div>;
 }
