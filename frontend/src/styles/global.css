@@ -157,6 +157,17 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .warning-note { background: #fff9de; border-left: 3px solid #cda900; padding: 16px; line-height: 1.7; font-size: 13px; }
 .tab-bar { display: flex; gap: 8px; margin: 25px 0 16px; }
 .thread-entry { border-left: 3px solid #dedfe1; padding: 4px 0 14px 16px; margin-bottom: 20px; font-size: 13px; }
+.vendor-history-list { display: grid; gap: 18px; }
+.vendor-history-entry { border: 1px solid #dce1e4; border-left: 4px solid #2b3137; padding: 18px; background: #fff; }
+.vendor-history-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid #e4e8eb; }
+.vendor-history-heading small, .vendor-message small { display: block; color: #697681; font-size: 11px; margin-top: 5px; }
+.vendor-message { margin-top: 16px; padding-left: 14px; border-left: 3px solid #f4c400; }
+.vendor-message h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+.vendor-message p { margin: 0; }
+.vendor-response { border-left-color: #2b3137; background: #f7f8f8; padding: 12px 14px; }
+.vendor-response-empty { color: #697681; font-size: 12px; margin: 16px 0 0; }
+.vendor-action-context { background: #f5f6f7; border-left: 3px solid #2b3137; padding: 14px 16px; margin-bottom: 18px; font-size: 13px; }
+.vendor-action-context p { margin-bottom: 0; }
 .attachment-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 15px 0; border-bottom: 1px solid #e4e8eb; }
 .attachment-row strong { overflow-wrap: anywhere; }
 .snapshot { font-size: 12px; color: #63717c; margin-bottom: 22px; }

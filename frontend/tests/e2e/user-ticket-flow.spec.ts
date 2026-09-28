@@ -13,6 +13,7 @@ test("requester creates, edits, filters and comments on a ticket", async ({ page
   await page.getByRole("button", { name: "Submit ticket" }).click();
   await expect(page.getByRole("heading", { name: "Printer unavailable", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Start handling", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Vendor history", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Edit ticket", exact: true }).click();
   await page.getByLabel("Title", { exact: true }).fill("Printer unavailable — floor two");
   await page.getByRole("button", { name: "Save ticket" }).click();

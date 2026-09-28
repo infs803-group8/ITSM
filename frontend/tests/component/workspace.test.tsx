@@ -245,3 +245,44 @@ describe("PR51 review regressions", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(error); expect(submitted).not.toHaveBeenCalled();
   });
 });
+
+describe("D04 vendor history", () => {
+  it("loads API-33 only for an authorised role and recovers from a read failure", async () => {
+    let fail = true; let calls = 0;
+    server.use(http.get(mockApiUrl("/tickets/:id/vendor-requests"), ({ request }) => {
+      calls++;
+      return fail ? mockError(request, 503, "SERVICE_UNAVAILABLE", "History temporarily unavailable.") : HttpResponse.json({ data: [] });
+    }));
+    await mount("/tickets/6001", "tier2@example.com");
+    await screen.findByRole("heading", { name: "Router firmware investigation" });
+    click("Vendor history");
+    expect(await screen.findByRole("alert")).toHaveTextContent("History temporarily unavailable.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Request ID:");
+    fail = false; click("Try again");
+    expect(await screen.findByText("No vendor requests have been recorded for this ticket.")).toBeVisible();
+    expect(calls).toBe(2);
+  });
+
+  it.each([
+    { email: "user@example.com", path: "/tickets/5001" },
+    { email: "tier1@example.com", path: "/tickets/5001" },
+  ])("does not expose or call API-33 for $email", async ({ email, path }) => {
+    const calls = vi.fn(); server.use(http.get(mockApiUrl("/tickets/:id/vendor-requests"), () => { calls(); return HttpResponse.error(); }));
+    await mount(path, email); await screen.findByRole("heading", { name: "Cannot connect to office Wi-Fi" });
+    expect(screen.queryByRole("button", { name: "Vendor history" })).not.toBeInTheDocument(); expect(calls).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the active API-33 history with the ticket subtree", async () => {
+    let calls = 0; let message = "Initial persisted reply";
+    server.use(http.get(mockApiUrl("/tickets/:id/vendor-requests"), () => {
+      calls++;
+      return HttpResponse.json({ data: [{ vendor_request_id: 1, vendor_org: { vendor_org_id: 1, name: "Example Support Ltd", is_active: true }, status: "RESPONDED",
+        vendor_message: "Please investigate.", created_at: "2026-09-01T00:00:00Z", responded_at: "2026-09-01T01:00:00Z",
+        response: { vendor_response_id: 2, vendor_request_id: 1, message, created_at: "2026-09-01T01:00:00Z" } }] });
+    }));
+    await mount("/tickets/6001", "tier2@example.com"); await screen.findByRole("heading", { name: "Router firmware investigation" });
+    click("Vendor history"); expect(await screen.findByText("Initial persisted reply")).toBeVisible();
+    message = "Reply loaded by manual refresh"; click("Refresh ticket");
+    expect(await screen.findByText("Reply loaded by manual refresh")).toBeVisible(); expect(calls).toBe(2);
+  });
+});

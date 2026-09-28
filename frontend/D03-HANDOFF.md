@@ -27,7 +27,7 @@
 
 登录仍先进入个人资料，左侧可进入业务页面。没有增加合同之外的密码重置、角色管理、删除工单、删除附件或通知推送页面。
 
-**未完成项（PR #51 R3 / Q03）：供应商已保存回复正文和历史请求/回复的持久化读取。** 当前完成的是 API-27 提交、状态变化与事件显示，不是完整供应商讨论流程。API-17 不含回复正文，真实 API-32 的回复事件 metadata 为 `{}`。Mock 已移除虚构的正文 metadata。C 主责读取能力、B 协调合同/路由，团队确认方案后由 D 接入页面。详情与可转发说明见 [PR51-REVIEW-FIXES.md](PR51-REVIEW-FIXES.md)。
+**历史未完成项（PR #51 R3 / Q03，现已由 D04 解决）：** D03 当时只有 API-27 提交、状态变化与事件显示。PR #53 后，D04 已通过 API-33 接入持久化请求/回复历史，见 [D04-HANDOFF.md](D04-HANDOFF.md)。
 
 ## 关键规则
 
@@ -42,7 +42,7 @@
 
 ## Mock 与生成
 
-- `scripts/generate-api.mjs` 新增 `src/mocks/workspace-fixtures.generated.json`，由仓库 OpenAPI 生成 32 个 operation 示例和验证 schema。`api:check` 同时校验新增文件。
+- `scripts/generate-api.mjs` 在 D03 时生成 32 个 operation；D04 随 API-33 更新为 33 个 operation 示例和验证 schema。`api:check` 同时校验生成文件。
 - 原 9 个基础 fixture、正式生成客户端、合同哈希和 OpenAPI 均未修改。
 - `src/mocks/workspaceHandlers.ts` / `workspaceModel.ts` / `state.ts` 提供多角色页面演示和状态流转；原 `handlers.ts` 扩展角色范围。
 - 开发登录页的 Demo role 可选择 USER / Tier 1 / Tier 2 / Vendor / Manager。此选项只填入测试账号，不是正式角色切换功能；生产应用不导入此入口。

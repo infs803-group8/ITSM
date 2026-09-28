@@ -1,9 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { signIn, openTicket, switchActor } from "./helpers";
 
-test("vendor sees only scoped fields and responds through the dedicated action", async ({ page }) => {
+test("vendor history persists through API-33 across actors and a new session", async ({ page }) => {
+  let historyReads = 0;
+  page.on("response", (response) => { if (response.request().method() === "GET" && response.url().endsWith("/tickets/6001/vendor-requests")) historyReads++; });
   await page.goto("/login"); await signIn(page, "vendor@example.com"); await openTicket(page, "Router firmware investigation");
+  await expect(page.getByRole("heading", { name: "Vendor request history" })).toBeVisible();
   await expect(page.getByText("Please review firmware version 4 connectivity logs.")).toBeVisible();
+  await expect(page.getByText("Apply firmware 4.2.1 and restart the access point.")).toBeVisible();
+  await expect(page.getByText("Inspect the first replacement unit.")).toHaveCount(0);
   await expect(page.getByText("Other requester", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Service level" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Comments", exact: true })).toHaveCount(0);
@@ -13,17 +18,21 @@ test("vendor sees only scoped fields and responds through the dedicated action",
   const replyResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/vendor-response"));
   await page.getByRole("button", { name: "Confirm Vendor response", exact: true }).click();
   expect((await (await replyResponse).json()).data.vendor_response.message).toBe("Firmware patch ready for testing.");
-  await expect(page.getByText("Responded", { exact: true })).toBeVisible();
+  await expect(page.getByText("Firmware patch ready for testing.", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Respond to request", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Upload attachment", exact: true })).toHaveCount(0);
+  const readsAfterSubmit = historyReads; expect(readsAfterSubmit).toBeGreaterThan(1);
+  await switchActor(page, "vendor@example.com"); await openTicket(page, "Router firmware investigation");
+  await expect(page.getByText("Firmware patch ready for testing.", { exact: true })).toBeVisible();
+  expect(historyReads).toBeGreaterThan(readsAfterSubmit);
   await page.getByRole("button", { name: "Activity", exact: true }).click();
   await expect(page.getByText("Vendor responded", { exact: true })).toBeVisible();
   await expect(page.getByText(/Firmware patch ready for testing/)).toHaveCount(0);
   await switchActor(page, "tier2@example.com"); await openTicket(page, "Router firmware investigation");
-  await page.getByRole("button", { name: "Activity", exact: true }).click();
-  await expect(page.getByText("Vendor responded", { exact: true })).toBeVisible();
-  // Q03 is pending: a successful write does not establish a persisted reply read API.
-  await expect(page.getByText(/Firmware patch ready for testing/)).toHaveCount(0);
+  await page.getByRole("button", { name: "Vendor history", exact: true }).click();
+  await expect(page.getByText("Firmware patch ready for testing.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Inspect the first replacement unit.", { exact: true })).toBeVisible();
+  await page.screenshot({ path: "docs/evidence/d04-vendor-history.png", fullPage: true });
   await expect(page.getByRole("button", { name: "Submit resolution", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Request vendor support", exact: true }).click();
   await expect(page.getByText(/Do not include the requester's name/)).toBeVisible();

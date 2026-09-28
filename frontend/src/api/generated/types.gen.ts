@@ -661,6 +661,14 @@ export type VendorResponseView = {
     created_at: string;
 };
 
+export type VendorRequestHistoryView = VendorRequestView & {
+    response: VendorResponseView | null;
+};
+
+export type VendorRequestHistoryResponse = {
+    data: Array<VendorRequestHistoryView>;
+};
+
 export type TicketActionData = {
     action: AvailableAction;
     ticket: TicketDetail;
@@ -2392,6 +2400,58 @@ export type Api25EscalateTicketResponses = {
 };
 
 export type Api25EscalateTicketResponse = Api25EscalateTicketResponses[keyof Api25EscalateTicketResponses];
+
+export type Api33ListVendorRequestHistoryData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional UUID correlation ID; server generates one if absent.
+         */
+        'X-Request-ID'?: string;
+    };
+    path: {
+        /**
+         * Ticket ID.
+         */
+        id: number;
+    };
+    query?: never;
+    url: '/tickets/{id}/vendor-requests';
+};
+
+export type Api33ListVendorRequestHistoryErrors = {
+    /**
+     * Missing/invalid/expired token.
+     */
+    401: ErrorResponse;
+    /**
+     * Permission denied.
+     */
+    403: ErrorResponse;
+    /**
+     * Not found or hidden.
+     */
+    404: ErrorResponse;
+    /**
+     * Validation failed.
+     */
+    422: ErrorResponse;
+    /**
+     * Dependency unavailable.
+     */
+    503: ErrorResponse;
+};
+
+export type Api33ListVendorRequestHistoryError = Api33ListVendorRequestHistoryErrors[keyof Api33ListVendorRequestHistoryErrors];
+
+export type Api33ListVendorRequestHistoryResponses = {
+    /**
+     * Successful response.
+     */
+    200: VendorRequestHistoryResponse;
+};
+
+export type Api33ListVendorRequestHistoryResponse = Api33ListVendorRequestHistoryResponses[keyof Api33ListVendorRequestHistoryResponses];
 
 export type Api26CreateVendorRequestData = {
     /**

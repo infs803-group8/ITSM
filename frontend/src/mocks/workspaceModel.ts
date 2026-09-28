@@ -1,14 +1,17 @@
-import type { AvailableAction, TicketDetail, UserProfile } from "../api/types";
+import type { AvailableAction, TicketDetail, UserProfile, VendorRequestHistoryView } from "../api/types";
 
-export function inScope(ticket: TicketDetail, user: UserProfile) {
+export function inScope(ticket: TicketDetail, user: UserProfile, history: VendorRequestHistoryView[] = []) {
   if (user.role === "USER") return ticket.requester?.user_id === user.user_id;
-  if (user.role === "EXTERNAL_VENDOR") return ticket.vendor_request?.vendor_org.vendor_org_id === user.vendor_org?.vendor_org_id;
+  if (user.role === "EXTERNAL_VENDOR") return history.some((item) => item.vendor_org.vendor_org_id === user.vendor_org?.vendor_org_id)
+    || ticket.vendor_request?.vendor_org.vendor_org_id === user.vendor_org?.vendor_org_id;
   return user.role === "SERVICE_DESK_MANAGER" || ticket.assignee?.user_id === user.user_id;
 }
-export function projectTicket(source: TicketDetail, user: UserProfile): TicketDetail {
+export function projectTicket(source: TicketDetail, user: UserProfile, history: VendorRequestHistoryView[] = []): TicketDetail {
   const ticket = structuredClone(source); const actions: AvailableAction[] = []; const status = source.status;
-  if (!inScope(source, user)) return { ...ticket, available_actions: [] };
+  if (!inScope(source, user, history)) return { ...ticket, available_actions: [] };
   if (user.role === "EXTERNAL_VENDOR") {
+    const own = history.filter((item) => item.vendor_org.vendor_org_id === user.vendor_org?.vendor_org_id).at(-1);
+    if (own) { const { response: _response, ...request } = own; ticket.vendor_request = request; }
     const active = ticket.vendor_request?.status === "ACTIVE" && status !== "CLOSED";
     return { ...ticket, description: null, requester: null, assignee: null, sla: null, pending_user: null, resolution: null, closure: null,
       status: status === "CLOSED" ? "CLOSED" : active ? "PENDING_VENDOR" : "IN_PROGRESS",

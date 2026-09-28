@@ -56,6 +56,7 @@ export function WorkflowPanel({ ticket, action, onDone, onCancel }: { ticket: Ti
     {(failureStatus === 409 || failureStatus === 404 || failureStatus === 403) && <p>The ticket may have changed or become unavailable. <Button onClick={() => onDone(false)}>Reload ticket</Button></p>}
     {invalid && <p role="alert">{invalid}</p>}
     {action === "REQUEST_VENDOR" && <p className="warning-note">Do not include the requester's name, email, user ID or other personal information. Write a separate vendor-safe message.</p>}
+    {action === "VENDOR_RESPONSE" && ticket.vendor_request && <div className="vendor-action-context"><strong>Current request from the service desk</strong><p className="pre-wrap">{ticket.vendor_request.vendor_message}</p></div>}
     {action === "CLOSE" && <p className="warning-note">Closing is permanent. You cannot reopen this ticket or add further comments or attachments.</p>}
     {needsEngineer && <QueryNotice query={engineers} />}{action === "REQUEST_VENDOR" && <QueryNotice query={vendors} />}
     <form className="work-form" onSubmit={submit}><fieldset disabled={write.busy || failureStatus === 409 || failureStatus === 404 || failureStatus === 403}>

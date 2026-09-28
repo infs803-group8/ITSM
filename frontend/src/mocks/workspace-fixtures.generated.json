@@ -1690,6 +1690,70 @@
         }
       ]
     },
+    "api33ListVendorRequestHistory": {
+      "method": "get",
+      "path": "/tickets/{id}/vendor-requests",
+      "status": 200,
+      "body": {
+        "data": [
+          {
+            "vendor_request_id": 7001,
+            "vendor_org": {
+              "vendor_org_id": 3001,
+              "name": "Example Network Vendor",
+              "is_active": true
+            },
+            "status": "RESPONDED",
+            "vendor_message": "Please review the attached de-identified router log.",
+            "created_at": "2026-09-01T03:20:15Z",
+            "responded_at": "2026-09-01T04:10:00Z",
+            "response": {
+              "vendor_response_id": 7101,
+              "vendor_request_id": 7001,
+              "message": "Apply firmware 4.2.1 and restart the access point.",
+              "created_at": "2026-09-01T04:10:00Z"
+            }
+          },
+          {
+            "vendor_request_id": 7002,
+            "vendor_org": {
+              "vendor_org_id": 3002,
+              "name": "Example Hardware Vendor",
+              "is_active": true
+            },
+            "status": "CANCELLED",
+            "vendor_message": "Please inspect the replacement unit.",
+            "created_at": "2026-09-02T01:00:00Z",
+            "responded_at": null,
+            "response": null
+          }
+        ]
+      },
+      "requestSchema": null,
+      "parameters": [
+        {
+          "name": "X-Request-ID",
+          "in": "header",
+          "required": false,
+          "description": "Optional UUID correlation ID; server generates one if absent.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Ticket ID.",
+          "schema": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        }
+      ]
+    },
     "api26CreateVendorRequest": {
       "method": "post",
       "path": "/tickets/{id}/vendor-requests",
@@ -3308,6 +3372,44 @@
               "created_at": "2026-09-01T03:20:15Z"
             }
           }
+        }
+      },
+      "API33Success": {
+        "summary": "Successful frontend mock response for API-33",
+        "value": {
+          "data": [
+            {
+              "vendor_request_id": 7001,
+              "vendor_org": {
+                "vendor_org_id": 3001,
+                "name": "Example Network Vendor",
+                "is_active": true
+              },
+              "status": "RESPONDED",
+              "vendor_message": "Please review the attached de-identified router log.",
+              "created_at": "2026-09-01T03:20:15Z",
+              "responded_at": "2026-09-01T04:10:00Z",
+              "response": {
+                "vendor_response_id": 7101,
+                "vendor_request_id": 7001,
+                "message": "Apply firmware 4.2.1 and restart the access point.",
+                "created_at": "2026-09-01T04:10:00Z"
+              }
+            },
+            {
+              "vendor_request_id": 7002,
+              "vendor_org": {
+                "vendor_org_id": 3002,
+                "name": "Example Hardware Vendor",
+                "is_active": true
+              },
+              "status": "CANCELLED",
+              "vendor_message": "Please inspect the replacement unit.",
+              "created_at": "2026-09-02T01:00:00Z",
+              "responded_at": null,
+              "response": null
+            }
+          ]
         }
       },
       "API28Success": {
@@ -5312,6 +5414,45 @@
           "vendor_request_id",
           "message",
           "created_at"
+        ]
+      },
+      "VendorRequestHistoryView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/VendorRequestView"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "response": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/VendorResponseView"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "response"
+            ]
+          }
+        ]
+      },
+      "VendorRequestHistoryResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VendorRequestHistoryView"
+            }
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "TicketActionData": {
