@@ -5,11 +5,11 @@
 **版本**：v1.1  
 **日期**：2026-09-01  
 **基线**：`IT-Service-Desk-Unified-Project-Baseline-v6.0.md`  
-**接口数量**：32（A=7、B=13、C=12）  
+**接口数量**：33（A=7、B=14、C=12）
 **机器可读合同**：`IT-Service-Desk-OpenAPI-v1.1.yaml`  
 **状态**：可直接用于 FastAPI Router、Pydantic Model、Swagger、Frontend Mock 和 TypeScript Client 开发
 
-> 本文冻结所有公共 HTTP 合同。SQLAlchemy Table、内部 Service/Repository 可以按 Owner 实现，但不得改变本文的 Path、Method、字段、Role Scope、状态语义或错误码。v1.1 明确 Required Response Field 始终存在，无值或对当前 Role 不可见时返回 JSON `null`，并为全部 32 个 Operation 提供 Frontend Mock Example。变更必须同时修改本文、OpenAPI YAML、Examples、Tests、Frontend Types 和 Trello Decision。
+> 本文冻结所有公共 HTTP 合同。SQLAlchemy Table、内部 Service/Repository 可以按 Owner 实现，但不得改变本文的 Path、Method、字段、Role Scope、状态语义或错误码。v1.1 明确 Required Response Field 始终存在，无值或对当前 Role 不可见时返回 JSON `null`，并为全部 33 个 Operation 提供 Frontend Mock Example。变更必须同时修改本文、OpenAPI YAML、Examples、Tests、Frontend Types 和 Trello Decision。
 
 ---
 
@@ -303,10 +303,11 @@ SERVICE_UNAVAILABLE
 | API-30 | C | POST | `/tickets/{id}/reopen` | Reopen ticket |
 | API-31 | C | POST | `/tickets/{id}/close` | Manual close |
 | API-32 | C | GET | `/tickets/{id}/events` | List audit events |
+| API-33 | B/C | GET | `/tickets/{id}/vendor-requests` | List vendor request history |
 
 ---
 
-## 5. 32 个接口详细合同
+## 5. 33 个接口详细合同
 
 ### API-01 — GET `/health`
 
@@ -1416,6 +1417,31 @@ SERVICE_UNAVAILABLE
 
 ---
 
+### API-33 — GET `/tickets/{id}/vendor-requests`
+
+**具体作用与功能**
+
+- **使用场景**：Tier 2、Manager 或匹配的供应商重新打开工单后，读取此前持久化的供应商请求与正式回复。
+- **用户看到的结果**：请求按创建时间从旧到新返回；已回复请求包含 `response`，未回复或已取消请求的 `response` 为 `null`。
+- **权限**：Tier 2 和 Manager 可读取其可见工单的全部供应商历史；Vendor 只能读取本组织历史；USER 和 Tier 1 返回 `403 DATA_SCOPE_DENIED`；不可见或不存在的工单返回 404。
+- **安全要求**：响应不包含内部请求人或回复人字段，审计 metadata 不复制请求或回复正文。
+
+- **Owner**：成员 B/C
+- **成功**：HTTP 200，Response Model：`VendorRequestHistoryResponse`
+- **业务错误码**：DATA_SCOPE_DENIED, RESOURCE_NOT_FOUND, VALIDATION_ERROR, SERVICE_UNAVAILABLE
+
+**Path / Query 参数**
+
+| 参数 | 位置 | 类型 | Required | Default/约束 | 说明 |
+|---|---|---|---:|---|---|
+| `id` | path | integer(int64) | 是 | min: 1 | Ticket ID. |
+
+**Request Body**：无。
+
+**Response Body**：见 `VendorRequestHistoryResponse`；`data` 不分页，按 `created_at`、`vendor_request_id` 升序。
+
+---
+
 ## 6. 关键业务规则
 
 第 6 节规定的是：**系统在什么情况下允许或拒绝某个操作，以及不同角色最终能够看到什么**。单个 API 章节主要说明 URL、请求参数和响应参数；本节则是所有相关 API 都必须共同遵守的业务判断标准。
@@ -1726,7 +1752,7 @@ Backend 不能把“字段未提交”和“字段明确提交为 null”当成�
 }
 ```
 
-统一 Envelope 后，Frontend 可以使用一个公共 API Client 处理 `data`、分页和错误，不需要为 32 个 API 分别猜测不同的返回格式。
+统一 Envelope 后，Frontend 可以使用一个公共 API Client 处理 `data`、分页和错误，不需要为 33 个 API 分别猜测不同的返回格式。
 
 #### 7.0.7 各成员如何使用这一节
 
@@ -2174,6 +2200,20 @@ Backend 不能把“字段未提交”和“字段明确提交为 null”当成�
 | `vendor_request_id` | integer(int64) | 是 |  | Request ID. |
 | `message` | string | 是 | maxLength: 4000 | Response. |
 | `created_at` | string(date-time) | 是 |  | Created. |
+
+### VendorRequestHistoryView
+
+包含 `VendorRequestView` 的全部字段，并增加：
+
+| 字段 | 类型 | Required | 约束 | 说明 |
+|---|---|---:|---|---|
+| `response` | VendorResponseView \| null | 是 |  | 已回复时为持久化回复；ACTIVE/CANCELLED 或尚未回复时为 null。 |
+
+### VendorRequestHistoryResponse
+
+| 字段 | 类型 | Required | 约束 | 说明 |
+|---|---|---:|---|---|
+| `data` | array<VendorRequestHistoryView> | 是 | 不分页；按 created_at、vendor_request_id 升序 | 当前角色获授权读取的供应商历史。 |
 
 ### TicketActionData
 

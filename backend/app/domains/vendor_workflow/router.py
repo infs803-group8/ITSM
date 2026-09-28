@@ -15,10 +15,11 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_actor, get_db, request_id_header
 from app.common.request_context import RequestContext
+from app.domains.tickets.schema import VendorResponseView
 from app.domains.vendor_workflow.schema import VendorRequestCreate, VendorResponseRequest
 from app.domains.vendor_workflow.service import RequestVendorService, VendorResponseService
 from app.domains.workflow.router import build_ticket_action_response, error_responses
-from app.domains.workflow.schema import AvailableAction, TicketActionResponse, VendorResponseView
+from app.domains.workflow.schema import AvailableAction, TicketActionResponse
 
 router = APIRouter(tags=["Vendor Workflow"])
 

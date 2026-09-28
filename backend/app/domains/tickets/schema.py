@@ -139,6 +139,26 @@ class VendorRequestView(BaseModel):
         return as_utc(value) if value is not None else None
 
 
+class VendorResponseView(BaseModel):
+    vendor_response_id: int
+    vendor_request_id: int
+    message: str = Field(max_length=4000)
+    created_at: datetime
+
+    @field_validator("created_at", mode="after")
+    @classmethod
+    def created_at_is_utc(cls, value: datetime) -> datetime:
+        return as_utc(value)
+
+
+class VendorRequestHistoryView(VendorRequestView):
+    response: VendorResponseView | None
+
+
+class VendorRequestHistoryResponse(BaseModel):
+    data: list[VendorRequestHistoryView]
+
+
 class TicketSummary(BaseModel):
     ticket_id: int
     title: str

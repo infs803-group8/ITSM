@@ -9,7 +9,7 @@
 **Due**：2026-10-16  
 **状态**：当前统一基线
 
-> 本文件是开发、测试、集成、部署和报告的当前基准。旧版文档仅作为历史；若旧图、旧 API 描述或聊天记录与本文冲突，以本文为准。v6.0 保留 v5.0 的业务角色、主流程、状态机、分工和 32 个 API，并修正 Database 与 Frontend Contract：所有环境统一使用完整 `service_desk` Database；`backend/database/schema.sql` 是唯一可执行 Schema Contract，SQLAlchemy Models 必须与其一致；OpenAPI v1.1 的 Required 字段始终存在，无业务值或对当前 Role 不可见时返回 `null`；32 个 API 均提供可用于 Frontend Mock 的 Example。
+> 本文件是开发、测试、集成、部署和报告的当前基准。旧版文档仅作为历史；若旧图、旧 API 描述或聊天记录与本文冲突，以本文为准。v6.0 保留 v5.0 的业务角色、主流程、状态机和分工；Q03 Change Decision 将公共 API 扩展为 33 个，以支持供应商请求/回复历史读取。所有环境统一使用完整 `service_desk` Database；`backend/database/schema.sql` 是唯一可执行 Schema Contract，SQLAlchemy Models 必须与其一致；OpenAPI v1.1 的 Required 字段始终存在，无业务值或对当前 Role 不可见时返回 `null`；33 个 API 均提供可用于 Frontend Mock 的 Example。
 
 ---
 
@@ -342,8 +342,9 @@ Row Lock 只保证串行与重新验证，不保证“只有第一个请求能�
 | 30 | Resolution & Closure | POST `/tickets/{id}/reopen` | User | RESOLVED 窗口内；原 Assignee 优先；新 Cycle | C |
 | 31 | Resolution & Closure | POST `/tickets/{id}/close` | User | RESOLVED 窗口内，必须 acknowledge；终态 CLOSED | C |
 | 32 | Audit | GET `/tickets/{id}/events` | Scoped Role | Role/Scope-aware Timeline | C |
+| 33 | Vendor History | GET `/tickets/{id}/vendor-requests` | T2/Manager/Matching Vendor | 持久化请求与回复历史；工单范围和 Vendor 组织隔离 | B/C |
 
-公开 API 共 32 个：A=7、B=13、C=12。Background Jobs、RBAC、Serializer 和 Assignment Service 是内部组件，不新增公共 API。
+公开 API 共 33 个：A=7、B=14、C=12。Background Jobs、RBAC、Serializer 和 Assignment Service 是内部组件，不新增公共 API。
 
 每个 API Owner 必须在同一 PR 提交 Router/Service/Repository、Schema、Unit/Contract Tests 和 OpenAPI Change；D 只依赖已合并的 OpenAPI Contract。
 
@@ -914,7 +915,7 @@ Attachment Cleanup 必须先锁定 Upload Session 并重新读取状态；只删
 - Marker 可通过公开 HTTPS URL 使用 Frontend，也可直接调用公开 Backend API/OpenAPI。
 - Client、Backend、Cloud Database 三层成立；RDS/S3 私有且使用最小权限。
 - 附件由持久化 Upload Session 绑定 Ticket/Creator/Visibility/Object；Complete 以 HeadObject 为准且幂等。
-- 32 个公共 API 全部可列示和测试，其中 17 个 POST，满足 Assignment 下限。
+- 33 个公共 API 全部可列示和测试，其中 17 个 POST，满足 Assignment 下限。
 - Git History、Pull Requests、Trello、本地测试证据、Cloud Logs、API/E2E Results 能证明个人贡献和团队集成。
 
 ### 10.3 最终交付清单
@@ -952,7 +953,7 @@ Attachment Cleanup 必须先锁定 Upload Session 并重新读取状态；只删
 - AWS CloudFront Developer Guide：Application Load Balancer Origin；HTTPS Viewer/Origin 设置。
 - Amazon ECS Developer Guide：EventBridge Scheduler 运行 Scheduled Task。
 - Amazon S3 API Reference：HeadObject。
-- 重大 v3→v4 变化见 `IT-Service-Desk-Unified-Project-Baseline-v3-to-v4-Changelog.md`。v4→v5 的重点是：移除 Alembic、取消开发期 Integration RDS、采用本地 MySQL 和开发 S3。v5→v6 的重点是：统一 Database Name 为 `service_desk`；所有环境使用完整 19 表结构；Canonical SQL 成为唯一可执行 Schema Contract；Required Response Field 使用稳定 Key + `null`；OpenAPI v1.1 为 32 个 API 提供 Frontend Mock Example。旧 Decision/讨论细节保留在历史版本，不在本基线重复。
+- 重大 v3→v4 变化见 `IT-Service-Desk-Unified-Project-Baseline-v3-to-v4-Changelog.md`。v4→v5 的重点是：移除 Alembic、取消开发期 Integration RDS、采用本地 MySQL 和开发 S3。v5→v6 最初冻结 32 个 API；Q03 Change Decision 后增加供应商历史读取接口，当前为 33 个。其余重点包括统一 Database Name 为 `service_desk`、所有环境使用完整 19 表结构、Canonical SQL 成为唯一可执行 Schema Contract，以及 Required Response Field 使用稳定 Key + `null`。旧 Decision/讨论细节保留在历史版本，不在本基线重复。
 
 ---
 
