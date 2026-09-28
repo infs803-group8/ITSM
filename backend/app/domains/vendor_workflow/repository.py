@@ -79,6 +79,52 @@ class VendorWorkflowRepository:
         )
         return int(result.lastrowid)
 
+    def list_request_history(
+        self, *, ticket_id: int, vendor_org_id: int | None
+    ) -> list[Mapping[str, Any]]:
+        """Q03: every vendor request on a ticket with its (at most one)
+        formal response, oldest first -- the persisted thread that
+        ``TicketDetail.vendor_request`` (current request only) and the
+        API-27 action response cannot give back after a refresh.
+
+        ``vendor_org_id`` is the organisation isolation boundary: when it is
+        set, only that organisation's requests (and therefore only its own
+        responses) are returned, enforced in SQL rather than filtered in
+        Python. ``None`` means "no org filter" and must only be passed for
+        internal roles -- ``VendorHistoryReader`` decides that, never the
+        caller. All statuses are returned (ACTIVE/RESPONDED/CANCELLED); the
+        public endpoint decides what to expose. Read-only, no locks.
+        """
+        org_filter = "AND vr.vendor_org_id = :vendor_org_id" if vendor_org_id is not None else ""
+        params: dict[str, Any] = {"ticket_id": ticket_id}
+        if vendor_org_id is not None:
+            params["vendor_org_id"] = vendor_org_id
+        rows = (
+            self.database.execute(
+                text(
+                    f"""
+                    SELECT vr.vendor_request_id, vr.vendor_org_id, vr.status,
+                           vr.vendor_message, vr.created_at, vr.responded_at,
+                           vo.name AS vendor_org_name,
+                           vo.is_active AS vendor_org_is_active,
+                           resp.vendor_response_id,
+                           resp.message AS response_message,
+                           resp.created_at AS response_created_at
+                    FROM vendor_requests vr
+                    JOIN vendor_organisations vo ON vo.vendor_org_id = vr.vendor_org_id
+                    LEFT JOIN vendor_responses resp
+                      ON resp.vendor_request_id = vr.vendor_request_id
+                    WHERE vr.ticket_id = :ticket_id {org_filter}
+                    ORDER BY vr.created_at, vr.vendor_request_id
+                    """
+                ),
+                params,
+            )
+            .mappings()
+            .all()
+        )
+        return list(rows)
+
     def get_active_binding(self, *, ticket_id: int) -> ActiveVendorBinding | None:
         """Implements ``app.contracts.vendor_binding.VendorBindingReader``
         (C029.06) -- Member A's dashboard code (or any other future
