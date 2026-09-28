@@ -9,6 +9,8 @@ from app.api.dependencies import get_current_actor, get_db
 from app.common.request_context import RequestContext
 from app.common.responses import ErrorResponse
 from app.core.enums import Category, Priority, SlaStatus, TicketStatus
+from app.core.errors import ApplicationError
+from app.domains.tickets.repository import TicketRepository
 from app.domains.tickets.schema import (
     SortOrder,
     TicketCreateRequest,
@@ -16,8 +18,10 @@ from app.domains.tickets.schema import (
     TicketListResponse,
     TicketSortBy,
     TicketUpdateRequest,
+    VendorRequestHistoryResponse,
 )
 from app.domains.tickets.service import TicketService
+from app.domains.vendor_workflow.history import VendorHistoryReader
 
 router = APIRouter(prefix="/tickets", tags=["Tickets"])
 
@@ -84,6 +88,32 @@ def get_ticket(
     database: Annotated[Session, Depends(get_db)],
 ) -> TicketDetailResponse:
     return TicketService(database).get(actor, id)
+
+
+@router.get(
+    "/{id}/vendor-requests",
+    response_model=VendorRequestHistoryResponse,
+    operation_id="api33ListVendorRequestHistory",
+    responses={
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+)
+def list_vendor_request_history(
+    id: Annotated[int, Path(ge=1)],
+    actor: Annotated[RequestContext, Depends(get_current_actor)],
+    database: Annotated[Session, Depends(get_db)],
+) -> VendorRequestHistoryResponse:
+    # Ticket visibility is checked first: out-of-scope and missing tickets
+    # both return 404. The reader then applies the narrower role and Vendor
+    # organisation rules to the history itself.
+    if not TicketRepository(database).visible(actor, id):
+        raise ApplicationError("RESOURCE_NOT_FOUND", "Ticket not found.", 404)
+    items = VendorHistoryReader(database).list_for_actor(ticket_id=id, actor=actor)
+    return VendorRequestHistoryResponse(data=items)
 
 
 @router.patch(

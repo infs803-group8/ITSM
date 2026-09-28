@@ -41,18 +41,18 @@
 
 ## Q03 — Vendor 历史 Thread 的持久化读取方式
 
-- **日期**：2026-09-05（草拟）
+- **日期**：2026-09-05（2026-09-28 确认）
 - **参与 Owner**：C（主责）、B（跨域字段）、D（前端读取方式）
 - **问题**：`Unified-Project-Baseline-v6.0` 要求 Vendor/Tier2 能持续读取历史 VendorRequest 的 Thread 和回复，但 OpenAPI 里 `TicketDetail.vendor_request` 只嵌入"当前"单个 VendorRequestView，`VendorResponseView` 只出现在动作响应（API-27 成功回包）里，没有独立的"历史列表"读接口。如果没有专门接口，前端只能依赖浏览器临时缓存动作响应或把完整正文塞进 `TicketEvent.metadata`——后者违反 C012.05"不复制完整供应商正文"的规则。
-- **确定行为（草案）**：
+- **确定行为**：
   1. 新增一个只读接口 `GET /tickets/{id}/vendor-requests`（Tier2/Manager 返回全部历史；Vendor 只返回本组织范围内的记录），每条记录包含 `VendorRequestView` + 关联的 `VendorResponseView`（如果已回复）。
   2. `TicketEvent`（VENDOR_REQUESTED/VENDOR_RESPONDED/VENDOR_CANCELLED）的 `metadata` 只保留 `vendor_request_id` 引用，不复制正文；前端时间线点击事件后跳转调用上述新接口按 ID 查看正文。
-  3. 这属于新增公共接口（会把当前"32个API"变为 33 个），需要提交团队 Change Decision 并同步更新 `Unified-Project-Baseline-v6.0` §5.2、OpenAPI 和相关测试。
+  3. 团队已批准 Change Decision：公共接口由 32 个变为 33 个，并同步更新 `Unified-Project-Baseline-v6.0` §5.2、API list、OpenAPI 和相关测试。课程不限制接口总数，无需另行取得教师批准。
 - **备选方案（未采纳，仅记录）**：把 `TicketDetail.vendor_request` 从单对象改为数组，返回全部历史 VendorRequestView（含各自 Response）。优点是不新增接口数量；缺点是让"当前详情"接口承载历史列表语义，且需要改动更多现有 Consumer（D 的详情页组件）。
 - **受影响任务**：C015（事件时间线）、C030（Vendor Response）、C047（Vendor 隔离联调）、C048（本地集成 Gate）。
-- **Review/PR**：需 B（tickets 路由registration）、D（是否愿意多调一个接口）共同确认新增接口方案 vs 备选方案。
+- **Review/PR**：C 在 PR #52 提供持久化读取和组织隔离；B 提供 tickets 路由、工单范围检查、公共模型和 OpenAPI；D 在合同合并后重新生成客户端并接入页面。
 - **测试预期**：T-VEN-05（历史正文可读、组织隔离）。
-- **状态**：技术方案已给出两个选项草案，**需团队开会决定新增接口 vs 改造现有字段**，标记为本周优先决策事项（影响 API 总数和前端联调节奏）。
+- **状态**：**已决定并实施**。采用独立只读接口；不把历史数组塞入 `TicketDetail.vendor_request`，也不把正文复制到审计 metadata。
 
 ---
 
@@ -184,7 +184,7 @@
 ## 汇总：本周需要团队尽快确认的事项（按影响排序）
 
 1. **Q06**（AssigneeSummary 是否需要按角色瘦身）——直接卡住 C021 和 D 的前端类型生成。
-2. **Q03**（Vendor 历史 Thread 是否新增接口）——直接卡住 C015/C030/C047，且影响"32个API"这个课程硬性要求的总数是否变化。
+2. **Q03 已解决**：采用 `GET /tickets/{id}/vendor-requests`，C/B/D 按确认分工实施。
 3. **Q02** 中 `ticket.status` 对 Vendor 是否可见——影响 C030 的 Contract Test 具体断言。
 4. **Q04** 中 `TICKET_UPDATED` 是否新增枚举——影响 B 的 API-18 和 C 的事件映射表定稿。
 5. **Q10** 凭据轮换与账号发放流程——不阻塞开发，但存在真实安全风险，建议尽快处理。

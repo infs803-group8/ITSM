@@ -7,18 +7,16 @@ workflow actions those endpoints accept.
 ``app.core.enums``; both are imported here rather than redefined, so the
 ticket inside every action response is the exact model GET detail
 (API-17) returns. ``AvailableAction`` is re-exported for existing callers.
-``VendorResponseView`` stays here: only the Vendor Response action
-(API-27) produces one and it has no counterpart on ``TicketDetail``.
+``VendorResponseView`` is also a shared ticket-domain model because the
+Q03 history read returns it after the original API-27 action response.
 """
 
-from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
-from app.core.clock import as_utc
 from app.core.enums import AvailableAction
-from app.domains.tickets.schema import TicketDetail, VendorRequestView
+from app.domains.tickets.schema import TicketDetail, VendorRequestView, VendorResponseView
 
 __all__ = [
     "AssignmentRequest",
@@ -33,18 +31,6 @@ __all__ = [
     "TicketActionResponse",
     "VendorResponseView",
 ]
-
-
-class VendorResponseView(BaseModel):
-    vendor_response_id: int
-    vendor_request_id: int
-    message: str
-    created_at: datetime
-
-    @field_validator("created_at", mode="after")
-    @classmethod
-    def created_at_is_utc(cls, value: datetime) -> datetime:
-        return as_utc(value)
 
 
 class TicketActionData(BaseModel):

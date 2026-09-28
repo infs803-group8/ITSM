@@ -3,7 +3,7 @@
   "info": {
     "title": "IT Service Desk and Incident Ticketing System API",
     "version": "1.1.0",
-    "description": "Final 32-endpoint contract derived from Baseline v6.0. UTC ISO 8601. Request models reject additional fields unless stated. Required response fields are always present; unavailable or role-hidden values are JSON null. Every operation contains a successful frontend mock example."
+    "description": "Final 33-endpoint contract derived from Baseline v6.0 plus the approved Q03 change. UTC ISO 8601. Request models reject additional fields unless stated. Required response fields are always present; unavailable or role-hidden values are JSON null. Every operation contains a successful frontend mock example."
   },
   "servers": [
     {
@@ -1864,6 +1864,65 @@
       }
     },
     "/tickets/{id}/vendor-requests": {
+      "get": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "List vendor request history",
+        "description": "Returns persisted vendor requests and their optional responses in chronological order. Tier 2 and Manager can read all history for a visible ticket; Vendor can read only its own organisation's history; USER and Tier 1 are denied.\n\nAccess: Scoped Tier 2/Manager or matching EXTERNAL_VENDOR. Owner: Member B with Member C repository.",
+        "operationId": "api33ListVendorRequestHistory",
+        "x-api-id": "API-33",
+        "x-owner": "B",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestId"
+          },
+          {
+            "$ref": "#/components/parameters/TicketId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorRequestHistoryResponse"
+                },
+                "examples": {
+                  "success": {
+                    "$ref": "#/components/examples/API33Success"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
       "post": {
         "tags": [
           "Vendor Workflow"
@@ -3347,6 +3406,44 @@
               "created_at": "2026-09-01T03:20:15Z"
             }
           }
+        }
+      },
+      "API33Success": {
+        "summary": "Successful frontend mock response for API-33",
+        "value": {
+          "data": [
+            {
+              "vendor_request_id": 7001,
+              "vendor_org": {
+                "vendor_org_id": 3001,
+                "name": "Example Network Vendor",
+                "is_active": true
+              },
+              "status": "RESPONDED",
+              "vendor_message": "Please review the attached de-identified router log.",
+              "created_at": "2026-09-01T03:20:15Z",
+              "responded_at": "2026-09-01T04:10:00Z",
+              "response": {
+                "vendor_response_id": 7101,
+                "vendor_request_id": 7001,
+                "message": "Apply firmware 4.2.1 and restart the access point.",
+                "created_at": "2026-09-01T04:10:00Z"
+              }
+            },
+            {
+              "vendor_request_id": 7002,
+              "vendor_org": {
+                "vendor_org_id": 3002,
+                "name": "Example Hardware Vendor",
+                "is_active": true
+              },
+              "status": "CANCELLED",
+              "vendor_message": "Please inspect the replacement unit.",
+              "created_at": "2026-09-02T01:00:00Z",
+              "responded_at": null,
+              "response": null
+            }
+          ]
         }
       },
       "API28Success": {
@@ -5351,6 +5448,45 @@
           "vendor_request_id",
           "message",
           "created_at"
+        ]
+      },
+      "VendorRequestHistoryView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/VendorRequestView"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "response": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/VendorResponseView"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "response"
+            ]
+          }
+        ]
+      },
+      "VendorRequestHistoryResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VendorRequestHistoryView"
+            }
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "TicketActionData": {
