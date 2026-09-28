@@ -1,4 +1,4 @@
-import type { TicketDetail, UserProfile, Comment, Attachment, TicketEvent, PresignRequest, Role } from "../api/generated/types.gen";
+import type { TicketDetail, UserProfile, Comment, Attachment, TicketEvent, PresignRequest, Role, VendorRequestHistoryView } from "../api/generated/types.gen";
 import fixtures from "./fixtures.generated.json";
 
 // Deliberately fake credentials, usable only by the local MSW implementation.
@@ -14,6 +14,7 @@ export const mockState = {
   comments: new Map<number, Comment[]>(),
   attachments: new Map<number, Attachment[]>(),
   events: new Map<number, TicketEvent[]>(),
+  vendorHistories: new Map<number, VendorRequestHistoryView[]>(),
   uploads: new Map<string, { ticketId: number; userId: number; body: PresignRequest; uploaded: boolean; attachment?: Attachment }>(),
 };
 export const demoRoles: { role: Role; email: string; id: number; name: string }[] = [
@@ -27,7 +28,7 @@ export function resetMockState(): void {
   mockState.accounts.clear();
   mockState.tokens.clear();
   mockState.tickets.clear();
-  mockState.comments.clear(); mockState.attachments.clear(); mockState.events.clear(); mockState.uploads.clear();
+  mockState.comments.clear(); mockState.attachments.clear(); mockState.events.clear(); mockState.vendorHistories.clear(); mockState.uploads.clear();
   mockState.nextUserId = 1002;
   mockState.nextTicketId = 5002;
   const profile = structuredClone(fixtures.operations.api10GetMyProfile.body.data) as UserProfile;
@@ -43,10 +44,18 @@ export function resetMockState(): void {
     vendor_org: actor.role === "EXTERNAL_VENDOR" ? { vendor_org_id: 1, name: "Example Support Ltd", is_active: true } : null,
   } });
   mockState.tickets.set(ticket.ticket_id, ticket);
+  const vendorOrg = { vendor_org_id: 1, name: "Example Support Ltd", is_active: true };
+  const currentVendorRequest = { vendor_request_id: 7002, vendor_org: vendorOrg, status: "ACTIVE" as const, vendor_message: "Please review firmware version 4 connectivity logs.", created_at: "2026-09-02T01:00:00Z", responded_at: null };
   const vendorTicket: TicketDetail = { ...structuredClone(ticket), ticket_id: 6001, title: "Router firmware investigation", requester: { user_id: 1009, display_name: "Other requester" },
     status: "PENDING_VENDOR", display_status: "Pending vendor", assignee: { ...ticket.assignee!, user_id: 2002, display_name: "Tier 2 Engineer", tier: "TIER2" },
-    vendor_request: { vendor_request_id: 1, vendor_org: { vendor_org_id: 1, name: "Example Support Ltd", is_active: true }, status: "ACTIVE", vendor_message: "Please review firmware version 4 connectivity logs.", created_at: new Date().toISOString(), responded_at: null } };
+    vendor_request: currentVendorRequest };
   mockState.tickets.set(6001, vendorTicket);
+  mockState.vendorHistories.set(6001, [
+    { vendor_request_id: 7000, vendor_org: { vendor_org_id: 2, name: "Other Hardware Vendor", is_active: true }, status: "CANCELLED", vendor_message: "Inspect the first replacement unit.", created_at: "2026-08-31T23:00:00Z", responded_at: null, response: null },
+    { vendor_request_id: 7001, vendor_org: vendorOrg, status: "RESPONDED", vendor_message: "Review the earlier de-identified router log.", created_at: "2026-09-01T03:20:15Z", responded_at: "2026-09-01T04:10:00Z",
+      response: { vendor_response_id: 7101, vendor_request_id: 7001, message: "Apply firmware 4.2.1 and restart the access point.", created_at: "2026-09-01T04:10:00Z" } },
+    { ...currentVendorRequest, response: null },
+  ]);
   const deadline = new Date(Date.now() - 3600000).toISOString();
   const overdue: TicketDetail = { ...structuredClone(ticket), ticket_id: 6002, title: "Overdue network switch inspection", requester: { user_id: 1009, display_name: "Other requester" },
     status: "UNASSIGNED", display_status: "Unassigned", assignee: null, sla: { cycle_no: 1, status: "OVERDUE", started_at: new Date(Date.now() - 49 * 3600000).toISOString(), deadline } };

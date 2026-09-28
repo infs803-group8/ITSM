@@ -3,6 +3,7 @@ import { signIn, switchActor, openTicket } from "./helpers";
 
 test("information request, resume, resolution, reopen and permanent close", async ({ page }) => {
   await page.goto("/login"); await signIn(page, "tier1@example.com"); await openTicket(page);
+  await expect(page.getByRole("button", { name: "Vendor history", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Request information", exact: true }).click();
   await page.getByLabel("Message", { exact: true }).fill("Please confirm the Wi-Fi adapter model.");
   await page.getByRole("button", { name: "Confirm Request user info", exact: true }).click();

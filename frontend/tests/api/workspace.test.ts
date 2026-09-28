@@ -15,9 +15,9 @@ beforeEach(() => { resetMockState(); tokenStorage.clear(); });
 afterEach(() => server.resetHandlers()); afterAll(() => { server.close(); tokenStorage.clear(); });
 const signIn = (email: string) => login({ ...mockCredentials, email });
 const path = { id: 5001 };
-describe("D03 workspace SDK contracts and role boundaries", () => {
+describe("D04 workspace SDK contracts and role boundaries", () => {
   it("generates every operation's examples from the canonical contract", () => {
-    expect(Object.keys(fixtures.operations)).toHaveLength(32);
+    expect(Object.keys(fixtures.operations)).toHaveLength(33);
     for (const operation of operations) expect(fixtures.operations[operation.operationId as keyof typeof fixtures.operations].body).toEqual(successExample(operation.operationId));
   });
   it("validates list, update, comment and event response schemas", async () => {
@@ -65,18 +65,31 @@ describe("D03 workspace SDK contracts and role boundaries", () => {
     const detail = (await api.api17GetTicket({ path: vendorPath })).data.data;
     expect(detail).toMatchObject({ status: "PENDING_VENDOR", requester: null, description: null, sla: null, assignee: null });
     await expect(api.api19ListComments({ path: vendorPath })).rejects.toMatchObject({ status: 403 });
+    const initialVendorHistory = await api.api33ListVendorRequestHistory({ path: vendorPath });
+    assertResponse("api33ListVendorRequestHistory", 200, initialVendorHistory.data);
+    expect(initialVendorHistory.data.data.map((item) => item.vendor_org.vendor_org_id)).toEqual([1, 1]);
+    expect(initialVendorHistory.data.data[0].response?.message).toBe("Apply firmware 4.2.1 and restart the access point.");
     const response = await api.api27VendorResponse({ path: vendorPath, body: { message: "Vendor findings" } }); assertResponse("api27VendorResponse", 200, response.data);
     expect(response.data.data.ticket.status).toBe("IN_PROGRESS"); expect(response.data.data.ticket.available_actions).toEqual([]);
     expect(response.data.data.vendor_response?.message).toBe("Vendor findings");
     const vendorEvents = (await api.api32ListEvents({ path: vendorPath })).data.data;
     expect(vendorEvents.find((entry) => entry.event_type === "VENDOR_RESPONDED")?.metadata).toEqual({});
+    const persisted = await api.api33ListVendorRequestHistory({ path: vendorPath });
+    expect(persisted.data.data.at(-1)?.response?.message).toBe("Vendor findings");
     await signIn("tier2@example.com");
     const engineerEvents = (await api.api32ListEvents({ path: vendorPath })).data.data;
     expect(engineerEvents.find((entry) => entry.event_type === "VENDOR_RESPONDED")?.metadata).toEqual({});
     expect(JSON.stringify((await api.api17GetTicket({ path: vendorPath })).data)).not.toContain("Vendor findings");
+    const tier2History = await api.api33ListVendorRequestHistory({ path: vendorPath });
+    assertResponse("api33ListVendorRequestHistory", 200, tier2History.data);
+    expect(tier2History.data.data.map((item) => item.vendor_org.vendor_org_id)).toEqual([2, 1, 1]);
+    expect(tier2History.data.data.at(-1)?.response?.message).toBe("Vendor findings");
     assertResponse("api14ListVendors", 200, (await api.api14ListVendors()).data);
     const requested = await api.api26CreateVendorRequest({ path: vendorPath, body: { vendor_org_id: 1, vendor_message: "Another safe request" } });
     expect(requested.status).toBe(201); assertResponse("api26CreateVendorRequest", 201, requested.data);
+    expect((await api.api33ListVendorRequestHistory({ path: vendorPath })).data.data.at(-1)).toMatchObject({ vendor_message: "Another safe request", response: null });
+    await signIn("user@example.com"); await expect(api.api33ListVendorRequestHistory({ path })).rejects.toMatchObject({ status: 403, code: "DATA_SCOPE_DENIED" });
+    await signIn("tier1@example.com"); await expect(api.api33ListVendorRequestHistory({ path })).rejects.toMatchObject({ status: 403, code: "DATA_SCOPE_DENIED" });
   });
   it("manager directories, assignment and dashboard use canonical response shapes", async () => {
     await signIn("user@example.com"); const created = await api.api15CreateTicket({ body: { title: "Assign me", description: "Description", category: "NETWORK", priority: "LOW" } });

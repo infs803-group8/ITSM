@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import * as sdk from "../../src/api/generated/sdk.gen";
-import type { Api08RegisterData, Api09LoginData, LoginData, LoginRequest, RegisterRequest, TicketActionResponse, TicketCreateRequest, TicketDetail } from "../../src/api/types";
+import type { Api08RegisterData, Api09LoginData, LoginData, LoginRequest, RegisterRequest, TicketActionResponse, TicketCreateRequest, TicketDetail, VendorRequestHistoryResponse } from "../../src/api/types";
 import fixtures from "../../src/mocks/fixtures.generated.json";
 import manifest from "../../src/api/generated/contract-manifest.json";
 import { contract, operations, assertResponse, successExample } from "./contract";
@@ -14,8 +14,8 @@ describe("generated API / source contract alignment", () => {
     const source = readFileSync(fileURLToPath(new URL("../../../docs/api/openapi.yaml", import.meta.url)), "utf8").replace(/\r\n/g, "\n");
     expect(manifest.sha256).toBe(createHash("sha256").update(source).digest("hex"));
   });
-  it("exposes all 32 operationId functions", () => {
-    expect(operations).toHaveLength(32);
+  it("exposes all 33 operationId functions", () => {
+    expect(operations).toHaveLength(33);
     for (const operation of operations) expect(sdk).toHaveProperty(operation.operationId, expect.any(Function));
   });
 
@@ -55,6 +55,7 @@ describe("generated API / source contract alignment", () => {
     expectTypeOf<TicketDetail["ticket_id"]>().toEqualTypeOf<number>();
     expectTypeOf<TicketDetail["vendor_request"]>().toBeNullable();
     expectTypeOf<TicketActionResponse["data"]["ticket"]>().toEqualTypeOf<TicketDetail>();
+    expectTypeOf<VendorRequestHistoryResponse["data"][number]["response"]>().toBeNullable();
     expectTypeOf<TicketCreateRequest["priority"]>().toEqualTypeOf<"LOW" | "MEDIUM" | "HIGH" | "URGENT">();
   });
 });

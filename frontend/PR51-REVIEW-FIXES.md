@@ -1,5 +1,7 @@
 # PR #51 R1–R4 本地修复与 R3 协调说明
 
+> 后续状态：本文件记录的是 PR #51 审核时的缺口。PR #53 已在 main 增加 API-33；D04 已重新生成客户端并接入持久化 Vendor 历史读取。当前实现与验证见 [D04-HANDOFF.md](D04-HANDOFF.md)。
+
 日期：2026-09-28。分支：`feature/WBS-D03-ticket-workspace`。
 审核基准：`499767e1021dcc3b51cc1272ddc1ff9cc51c8a0e`。
 本轮仅修改 `frontend/`，未修改 backend、OpenAPI、数据库、依赖或锁文件。修复先在本地完成并报告；用户随后确认将这些修改提交至现有 PR #51。最终提交 SHA 以该 PR 的修复提交为准。

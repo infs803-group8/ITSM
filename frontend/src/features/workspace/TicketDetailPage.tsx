@@ -9,6 +9,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { AttachmentsPanel } from "./AttachmentsPanel";
 import { CommentsPanel } from "./CommentsPanel";
 import { TicketForm } from "./TicketForm";
+import { VendorHistoryPanel } from "./VendorHistoryPanel";
 import { actionLabels, WorkflowPanel } from "./WorkflowPanel";
 import { date, label, PageHeading, Pager, QueryNotice, Status, useWorkspaceKey } from "./shared";
 
@@ -34,6 +35,9 @@ export function TicketDetailPage() {
   } }, [inaccessible, id, client, navigate, key[1], key[2]]);
   useEffect(() => { setAction(null); setNotice(""); setTab("comments"); }, [id]);
   const vendor = user?.role === "EXTERNAL_VENDOR";
+  const canReadVendorHistory = ["ENGINEER_TIER2", "SERVICE_DESK_MANAGER", "EXTERNAL_VENDOR"].includes(user?.role ?? "");
+  const activeTab = vendor && tab === "comments" ? "vendor_history" : tab;
+  const tabs = vendor ? ["vendor_history", "attachments", "activity"] : canReadVendorHistory ? ["comments", "vendor_history", "attachments", "activity"] : ["comments", "attachments", "activity"];
   function reload(escalated = false) {
     if (escalated && user?.role === "ENGINEER_TIER1") {
       client.removeQueries({ queryKey: [...key, "ticket", id] });
@@ -44,23 +48,23 @@ export function TicketDetailPage() {
   if (!valid) return <><PageHeading title="Invalid ticket address" /><Link to="/tickets">Return to tickets</Link></>;
   const ticket = query.data;
   return <><Link className="back-link" to="/tickets">← Back to tickets</Link><QueryNotice query={query} />
-    {ticket && !query.error && <><PageHeading title={ticket.title} note={`TICKET #${ticket.ticket_id}`}><Button disabled={!!action || query.isFetching} onClick={() => { setNotice(""); void query.refetch(); }}>Refresh ticket</Button></PageHeading>
+    {ticket && !query.error && <><PageHeading title={ticket.title} note={`TICKET #${ticket.ticket_id}`}><Button disabled={!!action || query.isFetching} onClick={() => { setNotice(""); void client.invalidateQueries({ queryKey: [...key, "ticket", id] }); }}>Refresh ticket</Button></PageHeading>
       {notice && <p role="status" className="success-message">{notice}</p>}
       <div className="ticket-overview"><Status value={ticket.display_status} /><span>{label(ticket.category)}</span><span>{label(ticket.priority)} priority</span>
         {!vendor && <span>Assignee: {ticket.assignee?.display_name ?? "Unassigned"}</span>}</div>
-      <div className="ticket-grid"><div className="ticket-main"><section className="panel"><div className="panel-heading"><h2>{vendor ? "Vendor request" : "Issue description"}</h2></div><div className="panel-body pre-wrap">
-        {vendor ? ticket.vendor_request?.vendor_message ?? "No vendor message available." : ticket.description ?? "No description available."}
-      </div></section>
+      <div className="ticket-grid"><div className="ticket-main">{!vendor && <section className="panel"><div className="panel-heading"><h2>Issue description</h2></div><div className="panel-body pre-wrap">
+        {ticket.description ?? "No description available."}
+      </div></section>}
         {ticket.resolution && !vendor && <section className="panel"><div className="panel-heading"><h2>Resolution</h2></div><div className="panel-body"><p className="pre-wrap">{ticket.resolution.summary}</p><p>{ticket.resolution.type && label(ticket.resolution.type)}</p><p>Reopen / close deadline: {date(ticket.resolution.auto_close_at)}</p></div></section>}
         {ticket.pending_user && !vendor && <p className="warning-note">{label(ticket.pending_user.reason)} · Respond before {date(ticket.pending_user.deadline)}. Use the available action, not an ordinary comment.</p>}
         {ticket.closure && !vendor && <p className="warning-note">Closed: {date(ticket.closure.closed_at)} · {label(ticket.closure.type)}. This ticket is read-only.</p>}
-        {ticket.vendor_request && !vendor && user?.role !== "USER" && <section className="panel"><div className="panel-heading"><h2>Vendor collaboration</h2></div><div className="panel-body"><strong>{ticket.vendor_request.vendor_org.name}</strong><p>{label(ticket.vendor_request.status)}</p><p className="pre-wrap">{ticket.vendor_request.vendor_message}</p></div></section>}
         {action === "EDIT" && <TicketForm key={ticket.ticket_id} ticket={ticket} onDone={() => reload()} />}
         {action && actionLabels[action] && <WorkflowPanel key={`${id}-${action}`} ticket={ticket} action={action} onDone={reload} onCancel={() => setAction(null)} />}
-        {!action && <><nav className="tab-bar" aria-label="Ticket sections">{(vendor ? ["attachments", "activity"] : ["comments", "attachments", "activity"]).map((value) => <Button key={value} type={(vendor && tab === "comments" ? "attachments" : tab) === value ? "primary" : "default"} onClick={() => setTab(value)}>{label(value)}</Button>)}</nav>
-          {!vendor && tab === "comments" && <CommentsPanel key={id} ticket={ticket} onChange={() => reload()} />}
-          {(tab === "attachments" || (vendor && tab === "comments")) && <AttachmentsPanel key={id} ticket={ticket} onChange={() => reload()} />}
-          {tab === "activity" && <EventsPanel key={id} id={id} />}</>}
+        {!action && <><nav className="tab-bar" aria-label="Ticket sections">{tabs.map((value) => <Button key={value} type={activeTab === value ? "primary" : "default"} onClick={() => setTab(value)}>{label(value)}</Button>)}</nav>
+          {!vendor && activeTab === "comments" && <CommentsPanel key={id} ticket={ticket} onChange={() => reload()} />}
+          {activeTab === "vendor_history" && <VendorHistoryPanel key={id} ticketId={id} />}
+          {activeTab === "attachments" && <AttachmentsPanel key={id} ticket={ticket} onChange={() => reload()} />}
+          {activeTab === "activity" && <EventsPanel key={id} id={id} />}</>}
       </div><aside className="ticket-aside"><section className="panel"><div className="panel-heading"><h2>Available actions</h2></div><div className="panel-body action-list">
         {ticket.available_actions.filter((a) => a === "EDIT" || actionLabels[a]).map((a) => <Button key={a} disabled={!!action} onClick={() => { setNotice(""); setAction(a); }}>{a === "EDIT" ? "Edit ticket" : actionLabels[a]}</Button>)}
         {!ticket.available_actions.some((a) => a === "EDIT" || actionLabels[a]) && <p>No workflow action available.</p>}

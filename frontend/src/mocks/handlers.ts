@@ -148,7 +148,7 @@ export const handlers = [
     }
     if (query.has("assignee_id") && user.role !== "SERVICE_DESK_MANAGER") return mockError(request, 403, "DATA_SCOPE_DENIED", "Assignee filtering is restricted for this role.");
     if (user.role === "EXTERNAL_VENDOR" && query.has("status") && !["PENDING_VENDOR", "IN_PROGRESS", "CLOSED"].includes(query.get("status")!)) return mockError(request, 403, "DATA_SCOPE_DENIED", "The requested status is not visible.");
-    let tickets = [...mockState.tickets.values()].filter((ticket) => inScope(ticket, user)).map((ticket) => projectTicket(ticket, user));
+    let tickets = [...mockState.tickets.values()].filter((ticket) => inScope(ticket, user, mockState.vendorHistories.get(ticket.ticket_id))).map((ticket) => projectTicket(ticket, user, mockState.vendorHistories.get(ticket.ticket_id)));
     if (query.has("assignee_id")) tickets = tickets.filter((t) => t.assignee?.user_id === Number(query.get("assignee_id")));
     for (const field of ["status", "category", "priority"] as const) {
       if (query.has(field)) tickets = tickets.filter((ticket) => ticket[field] === query.get(field));
@@ -176,8 +176,9 @@ export const handlers = [
     const user = authenticatedUser(request);
     if (!user) return unauthorized(request);
     const ticket = mockState.tickets.get(Number(params.id));
-    if (!ticket || !inScope(ticket, user)) return notFound(request);
-    return HttpResponse.json({ data: projectTicket(ticket, user) } satisfies TicketDetailResponse, { headers: headers(request) });
+    const history = ticket ? mockState.vendorHistories.get(ticket.ticket_id) : undefined;
+    if (!ticket || !inScope(ticket, user, history)) return notFound(request);
+    return HttpResponse.json({ data: projectTicket(ticket, user, history) } satisfies TicketDetailResponse, { headers: headers(request) });
   }),
 
   ...createWorkspaceHandlers({ url: mockApiUrl, authenticatedUser, error: mockError }),
