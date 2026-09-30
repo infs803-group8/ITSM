@@ -160,6 +160,75 @@ def test_ecs_circuit_breaker_rollback_is_not_reported_as_success():
         deploy.wait_for_revision(ecs, "cluster", "backend", "new", 1)
 
 
+def rollout_response(state="IN_PROGRESS", running=1, pending=0):
+    return {
+        "services": [
+            {
+                "status": "ACTIVE",
+                "runningCount": running,
+                "desiredCount": 1,
+                "pendingCount": pending,
+                "deployments": [
+                    {
+                        "status": "PRIMARY",
+                        "taskDefinition": "new",
+                        "rolloutState": state,
+                        "rolloutStateReason": "test rollout status",
+                    }
+                ],
+            }
+        ]
+    }
+
+
+def test_waiter_can_be_stable_before_rollout_completes(monkeypatch):
+    # Exercise the real botocore waiter: one deployment and matching task counts
+    # satisfy services_stable even while rolloutState remains IN_PROGRESS.
+    ecs = aws_client("ecs")
+    sleep = Mock()
+    monkeypatch.setattr(deploy.time, "sleep", sleep)
+    with Stubber(ecs) as stub:
+        for state in ["IN_PROGRESS", "IN_PROGRESS", "COMPLETED"]:
+            stub.add_response(
+                "describe_services",
+                rollout_response(state),
+                {"cluster": "cluster", "services": ["backend"]},
+            )
+        deploy.wait_for_revision(ecs, "cluster", "backend", "new", 1)
+        stub.assert_no_pending_responses()
+    sleep.assert_called_once()
+
+
+def test_rollout_failure_after_stability_reports_reason():
+    ecs = Mock()
+    ecs.describe_services.return_value = rollout_response("FAILED")
+    with pytest.raises(RuntimeError, match="FAILED.*test rollout status"):
+        deploy.wait_for_revision(ecs, "cluster", "backend", "new", 1)
+
+
+def test_rollout_confirmation_timeout_is_bounded_and_diagnostic(monkeypatch):
+    ecs = Mock()
+    ecs.describe_services.return_value = rollout_response()
+    monkeypatch.setattr(deploy.time, "monotonic", Mock(side_effect=[0, 901]))
+    sleep = Mock()
+    monkeypatch.setattr(deploy.time, "sleep", sleep)
+    with pytest.raises(RuntimeError, match="Timed out.*IN_PROGRESS"):
+        deploy.wait_for_revision(ecs, "cluster", "backend", "new", 1)
+    sleep.assert_not_called()
+
+
+def test_rollout_completion_still_requires_stable_task_counts(monkeypatch):
+    ecs = Mock()
+    ecs.describe_services.side_effect = [
+        rollout_response("COMPLETED", running=0, pending=1),
+        rollout_response("COMPLETED"),
+    ]
+    sleep = Mock()
+    monkeypatch.setattr(deploy.time, "sleep", sleep)
+    deploy.wait_for_revision(ecs, "cluster", "backend", "new", 1)
+    sleep.assert_called_once()
+
+
 def test_service_failure_restores_previous_revision_and_count(monkeypatch):
     ecs = Mock()
     previous = {
