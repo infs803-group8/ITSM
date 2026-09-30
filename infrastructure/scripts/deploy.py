@@ -90,17 +90,49 @@ def read_service(ecs, cluster, name):
 
 
 def wait_for_revision(ecs, cluster, name, revision, desired):
+    deadline = time.monotonic() + 15 * 60
     ecs.get_waiter("services_stable").wait(
         cluster=cluster, services=[name], WaiterConfig={"Delay": 15, "MaxAttempts": 60}
     )
-    service = read_service(ecs, cluster, name)
-    primary = next(d for d in service["deployments"] if d["status"] == "PRIMARY")
-    if (
-        primary["taskDefinition"] != revision
-        or primary.get("rolloutState") != "COMPLETED"
-        or service["runningCount"] < desired
-    ):
-        raise RuntimeError(f"ECS did not activate requested revision for {name}")
+    # services_stable checks deployment/task counts, not rolloutState. ECS can
+    # satisfy that waiter before the rollout completion reaches DescribeServices.
+    last_status = None
+    while True:
+        service = read_service(ecs, cluster, name)
+        primary = next(
+            (d for d in service["deployments"] if d["status"] == "PRIMARY"), {}
+        )
+        state = primary.get("rolloutState")
+        status = {
+            "service": name,
+            "requested_task": revision,
+            "primary_task": primary.get("taskDefinition"),
+            "rollout_state": state,
+            "rollout_reason": primary.get("rolloutStateReason"),
+            "running": service["runningCount"],
+            "desired": service.get("desiredCount"),
+            "pending": service.get("pendingCount", 0),
+            "deployments": len(service["deployments"]),
+        }
+        diagnostic = json.dumps(status)
+        if primary.get("taskDefinition") != revision or state == "FAILED":
+            raise RuntimeError(f"ECS did not activate requested revision: {diagnostic}")
+        if (
+            state == "COMPLETED"
+            and len(service["deployments"]) == 1
+            and service["runningCount"] == service.get("desiredCount")
+            and service["runningCount"] >= desired
+            and not service.get("pendingCount", 0)
+        ):
+            print(f"ECS rollout confirmed: {diagnostic}", flush=True)
+            return
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError(f"Timed out confirming ECS rollout: {diagnostic}")
+        if status != last_status:
+            print(f"Waiting for ECS rollout completion: {diagnostic}", flush=True)
+            last_status = status
+        time.sleep(min(15, remaining))
 
 
 def deploy_service(ecs, cluster, name, revision, *, after_rollback=None):

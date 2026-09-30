@@ -49,6 +49,11 @@ It refuses to start while another ECS deployment is active. It waits for stabili
 and verifies that the requested revision actually became active, so an ECS circuit
 breaker rollback is reported as failure.
 
+ECS can report matching task counts before its rollout state reaches `COMPLETED`.
+The deployer keeps polling during this interval within the same 15-minute timeout,
+instead of rolling back a healthy release. It logs the requested/current revision,
+rollout state and reason, and task counts to make actual failures diagnosable.
+
 Frontend releases invalidate the existing application CloudFront distribution and
 verify the HTML endpoint. Backend releases check `/api/v1/health`, including database
 health and `RELEASE_VERSION`, then update the attachment-cleanup and SLA-monitor
