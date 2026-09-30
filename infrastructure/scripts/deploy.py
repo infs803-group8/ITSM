@@ -31,8 +31,9 @@ def request_fields(client, operation, values):
 
 def image_for_commit(ecr, repository_url, commit, component):
     registry, repository = repository_url.split("/", 1)
+    tag = f"{component}-{commit}"
     try:
-        detail = ecr.describe_images(repositoryName=repository, imageIds=[{"imageTag": commit}])[
+        detail = ecr.describe_images(repositoryName=repository, imageIds=[{"imageTag": tag}])[
             "imageDetails"
         ][0]
     except ClientError as error:
@@ -48,13 +49,13 @@ def image_for_commit(ecr, repository_url, commit, component):
             text=True,
             check=True,
         )
-        tagged = f"{repository_url}:{commit}"
+        tagged = f"{repository_url}:{tag}"
         command = ["docker", "build", "--platform", "linux/amd64", "-t", tagged]
         if component == "frontend":
             command.extend(["--build-arg", "VITE_API_BASE_URL=/api/v1"])
         subprocess.run([*command, str(ROOT / component)], check=True)
         subprocess.run(["docker", "push", tagged], check=True)
-        detail = ecr.describe_images(repositoryName=repository, imageIds=[{"imageTag": commit}])[
+        detail = ecr.describe_images(repositoryName=repository, imageIds=[{"imageTag": tag}])[
             "imageDetails"
         ][0]
     return f"{repository_url}@{detail['imageDigest']}"
@@ -67,7 +68,7 @@ def register_image(ecs, family, container_name, image, commit):
     if len(matching) != 1:
         raise RuntimeError(f"Expected one {container_name} container in {family}")
     matching[0]["image"] = image
-    if container_name == "backend":
+    if container_name != "frontend":
         environment = [
             e for e in matching[0].get("environment", []) if e["name"] != "RELEASE_VERSION"
         ]

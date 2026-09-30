@@ -1,0 +1,41 @@
+name: Frontend - manual build and deploy
+run-name: Frontend · ${{ inputs.operation }} · ${{ inputs.image_tag || github.ref_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Operation
+        type: choice
+        default: build-only
+        options: [build-only, build-and-deploy, deploy-existing]
+      image_tag:
+        description: Existing frontend-<40-character SHA>-<version> tag (deploy-existing only)
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ecs-frontend-production
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/manual-ecs
+        with:
+          component: frontend
+          operation: ${{ inputs.operation }}
+          image-tag: ${{ inputs.image_tag }}
+          aws-role-arn: ${{ vars.AWS_RELEASE_ROLE_ARN }}

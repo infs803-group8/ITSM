@@ -8,9 +8,12 @@ Monorepo for the INFS803 Cloud Computing assignment. The system uses a FastAPI b
 - `frontend/` — React + TypeScript + Vite.
 - `infrastructure/` — Terraform, ECS templates, policies, and deployment scripts.
 - `docs/` — baseline, API contract, database design, runbooks, and evidence.
-- `.github/` — issue/PR templates and code ownership.
+- `.github/` — two manual release workflows, issue/PR templates, and code ownership.
 
-CI/CD is deferred. Run checks locally and use the manual deployment runbook when ready to release.
+Use **Actions → Frontend / Backend - manual build and deploy → Run workflow** on `main`.
+Choose `build-only`, `build-and-deploy`, or `deploy-existing`. Both components share
+the existing immutable ECR repository and deploy independently to their ECS services.
+There are no push or PR triggers. See [manual CI/CD](docs/deployment/github-actions.md).
 
 ## Local quick start
 
