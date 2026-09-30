@@ -1,0 +1,59 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EcrLogin",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "SharedRepositoryImages",
+      "Effect": "Allow",
+      "Action": ["ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload", "ecr:PutImage", "ecr:DescribeImages", "ecr:DescribeRepositories"],
+      "Resource": "arn:aws:ecr:ap-southeast-2:256329410824:repository/infs803-group8-itsm-backend"
+    },
+    {
+      "Sid": "TaskDefinitionRevisions",
+      "Effect": "Allow",
+      "Action": ["ecs:RegisterTaskDefinition", "ecs:DescribeTaskDefinition"],
+      "Resource": "*",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-southeast-2"}}
+    },
+    {
+      "Sid": "ApplicationServices",
+      "Effect": "Allow",
+      "Action": ["ecs:DescribeServices", "ecs:UpdateService"],
+      "Resource": [
+        "arn:aws:ecs:ap-southeast-2:256329410824:service/infs803-group8-itsm/infs803-group8-itsm-frontend",
+        "arn:aws:ecs:ap-southeast-2:256329410824:service/infs803-group8-itsm/infs803-group8-itsm-backend"
+      ]
+    },
+    {
+      "Sid": "PassExistingTaskRoles",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": ["arn:aws:iam::256329410824:role/infs803-group8-itsm-ecs-execution", "arn:aws:iam::256329410824:role/infs803-group8-itsm-backend-task"],
+      "Condition": {"StringEquals": {"iam:PassedToService": "ecs-tasks.amazonaws.com"}}
+    },
+    {
+      "Sid": "ExistingSchedules",
+      "Effect": "Allow",
+      "Action": ["scheduler:GetSchedule", "scheduler:UpdateSchedule"],
+      "Resource": ["arn:aws:scheduler:ap-southeast-2:256329410824:schedule/default/infs803-group8-itsm-attachment-cleanup", "arn:aws:scheduler:ap-southeast-2:256329410824:schedule/default/infs803-group8-itsm-sla-monitor"]
+    },
+    {
+      "Sid": "PassExistingSchedulerRole",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::256329410824:role/infs803-group8-itsm-scheduler",
+      "Condition": {"StringEquals": {"iam:PassedToService": "scheduler.amazonaws.com"}}
+    },
+    {
+      "Sid": "RefreshApplicationCache",
+      "Effect": "Allow",
+      "Action": ["cloudfront:CreateInvalidation", "cloudfront:GetInvalidation"],
+      "Resource": "arn:aws:cloudfront::256329410824:distribution/E14A1AQ2ZTMGB"
+    }
+  ]
+}

@@ -1,5 +1,14 @@
 # Infrastructure
 
+- `.github/workflows/frontend.yml` and `backend.yml` are manually dispatched releases.
+  They use OIDC, a shared ECR repository, and the existing ECS services.
+- `environments/production.json` records the existing deployment's non-secret resource IDs.
+- `scripts/release.py` resolves component-prefixed tags to immutable digests, preserves
+  active task configuration, verifies rollout/health, and rolls back failed releases.
+- `scripts/setup_github_oidc.py` previews the checked-in IAM policies; `--apply` creates
+  the OIDC provider and project-scoped release role. See
+  [GitHub Actions setup and usage](../docs/deployment/github-actions.md).
+
 - `terraform/dev-storage/` manages the existing shared S3 bucket after import; object expiry is disabled.
 - `terraform/final/` defines idle ECS services, full task definitions, private RDS,
   CloudFront/ALB, secrets, IAM and disabled schedules. It reuses the shared S3 bucket.

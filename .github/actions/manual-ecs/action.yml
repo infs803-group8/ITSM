@@ -1,0 +1,113 @@
+name: Manual ECS release
+description: Build one component in shared ECR and optionally update its existing ECS service.
+inputs:
+  component:
+    required: true
+    description: frontend or backend
+  operation:
+    required: true
+    description: build-only, build-and-deploy, or deploy-existing
+  image-tag:
+    required: false
+    default: ''
+    description: Component-prefixed immutable tag for deploy-existing
+  aws-role-arn:
+    required: true
+    description: GitHub OIDC release role ARN
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      with:
+        python-version: '3.12'
+        cache: pip
+        cache-dependency-path: |
+          infrastructure/requirements-release.txt
+          backend/requirements*.txt
+    - name: Install release tools
+      shell: bash
+      run: python -m pip install -r infrastructure/requirements-release.txt
+    - name: Validate release inputs
+      id: metadata
+      shell: bash
+      env:
+        COMPONENT: ${{ inputs.component }}
+        OPERATION: ${{ inputs.operation }}
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        AWS_ROLE: ${{ inputs.aws-role-arn }}
+      run: |
+        set -euo pipefail
+        test -n "$AWS_ROLE" || { echo 'Configure AWS_RELEASE_ROLE_ARN in repository variables'; exit 1; }
+        python infrastructure/scripts/release.py prepare --component "$COMPONENT" --operation "$OPERATION" --image-tag "$IMAGE_TAG"
+    - name: Verify release tooling
+      shell: bash
+      run: |
+        python -m ruff check infrastructure/scripts/release.py infrastructure/tests/test_release.py
+        python -m pytest infrastructure/tests -q
+    - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      if: inputs.component == 'frontend' && inputs.operation != 'deploy-existing'
+      with:
+        node-version: '22'
+        cache: npm
+        cache-dependency-path: frontend/package-lock.json
+    - name: Check frontend
+      if: inputs.component == 'frontend' && inputs.operation != 'deploy-existing'
+      shell: bash
+      working-directory: frontend
+      run: |
+        npm ci --no-audit --no-fund
+        npm run typecheck
+        npm run test:unit
+    - name: Check backend
+      if: inputs.component == 'backend' && inputs.operation != 'deploy-existing'
+      shell: bash
+      working-directory: backend
+      run: |
+        python -m pip install -r requirements-dev.txt
+        python -m ruff check .
+        python -m pytest -q
+    - name: Authenticate to AWS with OIDC
+      uses: aws-actions/configure-aws-credentials@4a1596c86fd706dc0521e32f0121ad1a6d1adb74 # v6
+      with:
+        role-to-assume: ${{ inputs.aws-role-arn }}
+        aws-region: ${{ steps.metadata.outputs.region }}
+        allowed-account-ids: ${{ steps.metadata.outputs.account_id }}
+        role-session-name: gha-${{ inputs.component }}-${{ github.run_id }}
+        role-duration-seconds: 3600
+    - name: Login to shared ECR
+      if: inputs.operation != 'deploy-existing'
+      uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
+    - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      if: inputs.operation != 'deploy-existing'
+    - name: Build and push selected component
+      if: inputs.operation != 'deploy-existing'
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+      with:
+        context: ./${{ inputs.component }}
+        file: ./${{ inputs.component }}/Dockerfile
+        platforms: linux/amd64
+        push: true
+        tags: ${{ steps.metadata.outputs.repository }}:${{ steps.metadata.outputs.image_tag }}
+        build-args: |
+          VCS_REF=${{ steps.metadata.outputs.source_sha }}
+          VITE_API_BASE_URL=/api/v1
+        labels: |
+          org.opencontainers.image.revision=${{ steps.metadata.outputs.source_sha }}
+          org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          org.opencontainers.image.title=itsm-${{ inputs.component }}
+        cache-from: type=gha,scope=${{ inputs.component }}
+        cache-to: type=gha,mode=max,scope=${{ inputs.component }}
+    - name: Verify published image
+      if: inputs.operation == 'build-only'
+      shell: bash
+      env:
+        COMPONENT: ${{ inputs.component }}
+        IMAGE_TAG: ${{ steps.metadata.outputs.image_tag }}
+      run: python infrastructure/scripts/release.py verify --component "$COMPONENT" --image-tag "$IMAGE_TAG"
+    - name: Deploy and verify selected ECS service
+      if: inputs.operation != 'build-only'
+      shell: bash
+      env:
+        COMPONENT: ${{ inputs.component }}
+        IMAGE_TAG: ${{ steps.metadata.outputs.image_tag }}
+      run: python infrastructure/scripts/release.py deploy --component "$COMPONENT" --image-tag "$IMAGE_TAG"

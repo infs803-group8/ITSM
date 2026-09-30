@@ -1,0 +1,47 @@
+{
+  "base_url": "https://itsm.infs803-group8.com",
+  "cloudfront_distribution_id": "E14A1AQ2ZTMGB",
+  "cluster": "arn:aws:ecs:ap-southeast-2:256329410824:cluster/infs803-group8-itsm",
+  "job_network": {
+    "awsvpcConfiguration": {
+      "assignPublicIp": "ENABLED",
+      "securityGroups": [
+        "sg-00693e9c222b4ffae"
+      ],
+      "subnets": [
+        "subnet-0aea95b0aa461fe56",
+        "subnet-094ee69a48cc43b6a"
+      ]
+    }
+  },
+  "jobs": {
+    "attachment-cleanup": {
+      "container": "attachment-cleanup",
+      "family": "infs803-group8-itsm-attachment-cleanup",
+      "schedule": "infs803-group8-itsm-attachment-cleanup"
+    },
+    "database-bootstrap": {
+      "container": "database-bootstrap",
+      "family": "infs803-group8-itsm-database-bootstrap"
+    },
+    "sla-monitor": {
+      "container": "sla-monitor",
+      "family": "infs803-group8-itsm-sla-monitor",
+      "schedule": "infs803-group8-itsm-sla-monitor"
+    }
+  },
+  "region": "ap-southeast-2",
+  "services": {
+    "backend": {
+      "family": "infs803-group8-itsm-backend",
+      "name": "infs803-group8-itsm-backend",
+      "repository": "256329410824.dkr.ecr.ap-southeast-2.amazonaws.com/infs803-group8-itsm-backend"
+    },
+    "frontend": {
+      "family": "infs803-group8-itsm-frontend",
+      "name": "infs803-group8-itsm-frontend",
+      "repository": "256329410824.dkr.ecr.ap-southeast-2.amazonaws.com/infs803-group8-itsm-backend"
+    }
+  },
+  "account_id": "256329410824"
+}
