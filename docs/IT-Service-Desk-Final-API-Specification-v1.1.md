@@ -8,12 +8,26 @@
 **Date**: 2026-09-01  
 **Baseline**: `IT-Service-Desk-Unified-Project-Baseline-v6.0.md`  
 **API Count**: 32 (A (BIN LIN)=7, B (Yujuan Gao)=13, C (Andy Wen)=12)  
-**Machine-readable Contract**: `IT-Service-Desk-OpenAPI-v1.1.yaml`  
+**Baseline Contract Snapshot**: `IT-Service-Desk-OpenAPI-v1.1.yaml`
+
 **Status**: Ready for FastAPI router, Pydantic model, Swagger, frontend mock and TypeScript client development
 
 > This document freezes all public HTTP contracts. Owners may implement SQLAlchemy tables and internal services/repositories as needed, but must not change the paths, methods, fields, role scopes, state semantics or error codes defined here. Version 1.1 specifies that required response fields must always be present, returning JSON `null` when they have no value or are hidden from the current role, and provides frontend mock examples for all 32 operations. Any change must update this document, the OpenAPI YAML, examples, tests, frontend types and the Trello decision together.
 
 ---
+
+> **Repository locations — checked 2026-10-07 against `main` [`379bb53`](https://github.com/infs803-group8/ITSM/tree/379bb531504e78b2b293564b070f8af33b85449c):** This file and the retained OpenAPI snapshot are directly under `docs/`. They describe the original 32-operation baseline. Current integration, client generation and contract tests use the 33-operation [implementation YAML](../backend/contracts/openapi.yaml) and [JSON counterpart](../backend/contracts/openapi.json), which also include API-33 for vendor request history. This directory update does not rewrite the baseline endpoint definitions below.
+
+| Artifact | Current repository path |
+|---|---|
+| This baseline specification | `docs/IT-Service-Desk-Final-API-Specification-v1.1.md` |
+| Retained baseline snapshot | `docs/IT-Service-Desk-OpenAPI-v1.1.yaml` |
+| Implementation contract | `backend/contracts/openapi.yaml`, `backend/contracts/openapi.json` |
+| Backend JSON exporter | `backend/scripts/export_openapi.py` |
+| Frontend generator configuration and script | `frontend/openapi.config.mjs`, `frontend/scripts/generate-api.mjs` |
+| Generated SDK, types and contract manifest | `frontend/src/api/generated/` |
+| Backend contract tests | `backend/tests/contract/` |
+| Frontend contract tests and helpers | `frontend/tests/api/` |
 
 ## 1. FastAPI Implementation Standards
 

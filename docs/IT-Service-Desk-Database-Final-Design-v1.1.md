@@ -20,6 +20,23 @@ This version adopts the following frozen decisions:
 
 > This design replaces the distinction between the `service_desk_dev` and `service_desk_final` database names in earlier documents. Environments are isolated through separate MySQL instances/endpoints, credentials and S3 prefixes, rather than different database names. If field definitions or initialisation rules conflict, `IT-Service-Desk-Unified-Project-Baseline-v6.0.md` governs processes and ownership, the canonical SQL governs the executable schema, and this document explains fields and relationships.
 
+### 1.1 Current Repository Locations
+
+Checked on 2026-10-07 against GitHub `main` [`379bb53`](https://github.com/infs803-group8/ITSM/tree/379bb531504e78b2b293564b070f8af33b85449c). This design document is directly under `docs/`; the executable SQL and database support files are under `backend/`.
+
+| Artifact | Current repository path |
+|---|---|
+| This design document | `docs/IT-Service-Desk-Database-Final-Design-v1.1.md` |
+| Canonical SQL | [`backend/database/schema.sql`](../backend/database/schema.sql) |
+| Shared database modules and model registry | `backend/app/db/`, `backend/app/db/model_registry.py` |
+| Domain models | `backend/app/domains/` |
+| Database verification tests | `backend/tests/database/` |
+| MySQL integration tests and runner | `backend/tests/integration/`, `backend/scripts/run_mysql_integration.py` |
+| Schema release evidence and reviewed patches | `backend/database/release/`, `backend/database/patches/` |
+| Local MySQL service configuration | [`docker-compose.local.yml`](../docker-compose.local.yml) |
+
+`IT-Service-Desk-MySQL-Schema-v1.0.sql` identifies the original source baseline; it is not a second SQL file required in the current repository. Use the tracked `backend/database/schema.sql`. File presence here does not assert that every bootstrap or verification entry point is fully implemented.
+
 ## 2. Design Objectives
 
 The database must support the following business capabilities:
@@ -547,7 +564,7 @@ Failed requests roll back in full; no failure event is recorded.
 ### 12.1 Local Development
 
 1. Each Backend member installs MySQL 8.0/8.4 and uses their own local account.
-2. Place the reviewed `IT-Service-Desk-MySQL-Schema-v1.0.sql` at `backend/database/schema.sql` in the repository. Run this canonical file on an empty instance to create the complete `service_desk` database.
+2. Use the canonical SQL already tracked at `backend/database/schema.sql`. Run this reviewed file on an empty instance to create the complete `service_desk` database; do not replace it with a separately maintained copy of the original source SQL.
 3. The Backend `.env` stores only the member's own connection string and must not be committed to Git.
 4. A (BIN LIN)/B (Yujuan Gao)/C (Andy Wen) use the same SQLAlchemy model registry and must not import only their own domain models. CI schema drift tests must compare the models against the canonical SQL.
 5. When changing the schema, the domain owner first updates the model and this design; B (Yujuan Gao) reviews foreign keys, indexes and empty-database creation results.
