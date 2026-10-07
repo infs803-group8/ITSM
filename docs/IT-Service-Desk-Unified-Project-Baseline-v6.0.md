@@ -9,7 +9,9 @@
 **Version**: v6.0  
 **Date**: 2026-09-01  
 **Due**: 2026-10-16  
-**Status**: Current unified baseline
+**Status**: Unified v6.0 process baseline; current repository locations are recorded below
+
+> **Repository layout update — 2026-10-07:** Sections 7.5–7.6 and the file references in this document were checked against GitHub `main` at [`379bb53`](https://github.com/infs803-group8/ITSM/tree/379bb531504e78b2b293564b070f8af33b85449c). The original 32-operation API inventory is retained as the v6.0 process baseline. The current 33-operation implementation contract, including vendor request history, is [`backend/contracts/openapi.yaml`](../backend/contracts/openapi.yaml), with its [JSON counterpart](../backend/contracts/openapi.json). Use those files for client generation and contract tests.
 
 > This document is the current baseline for development, testing, integration, deployment and reporting. Earlier documents are historical references only; this document takes precedence over conflicting diagrams, API descriptions or chat records. Version 6.0 retains the business roles, main flow, state machine, responsibilities and 32 APIs from v5.0, while correcting the database and frontend contracts: all environments use the complete `service_desk` database; `backend/database/schema.sql` is the sole executable schema contract and SQLAlchemy models must match it; required fields in OpenAPI v1.1 are always present, returning `null` when they have no business value or are hidden from the current role; and all 32 APIs provide examples suitable for frontend mocks.
 
@@ -42,21 +44,22 @@
 | Background Jobs | EventBridge Scheduler launches short-lived ECS tasks; the SLA and attachment cleanup jobs run separately |
 | Registry / Logs | Amazon ECR, CloudWatch Logs |
 | Secrets / AWS Auth | AWS Secrets Manager stores DB/JWT secrets; GitHub Actions uses OIDC AssumeRole without storing long-term AWS keys |
-| CI/CD | GitHub Actions; deployment configuration, task definitions and runbooks are stored in Git |
+| CI/CD | Manually dispatched GitHub Actions in `.github/workflows/backend.yml` and `.github/workflows/frontend.yml`, using `.github/actions/manual-ecs/action.yml`; release scripts and environment configuration are under `infrastructure/` |
 | Infrastructure as Code | Terraform; `dev-storage` creates only the development S3 resources, while `final` creates the final AWS infrastructure |
 | Repository | GitHub monorepo; three Backend members and one Frontend member |
 | Project Manager | Member C (Andy Wen); coordinates work and checks evidence, while each owner remains responsible for updating tasks and completing tests |
 
 ### 1.2.1 Current Contract Documents and Precedence
 
-| Area | Sole Current Document(s) | Governs |
+| Area | Repository path(s) | Governs |
 |---|---|---|
-| Business flows, roles, responsibilities, milestones and deployment | `IT-Service-Desk-Unified-Project-Baseline-v6.0.md` | Overall project baseline. |
-| HTTP API | `IT-Service-Desk-Final-API-Specification-v1.1.md` + `IT-Service-Desk-OpenAPI-v1.1.yaml` | Paths, methods, authentication, requests, responses, errors and examples; OpenAPI governs machine-readable usage. |
-| Database Field Descriptions | `IT-Service-Desk-Database-Final-Design-v1.1.md` | Business meaning, relationships and fields of the 19 tables. |
-| Executable Database Schema | `backend/database/schema.sql`, frozen from `IT-Service-Desk-MySQL-Schema-v1.0.sql` | Sole executable schema contract; local and RDS databases use the same file. |
+| Business flows, roles, responsibilities and milestones | `docs/IT-Service-Desk-Unified-Project-Baseline-v6.0.md` | Original v6.0 process baseline; sections 7.5–7.6 describe the current repository layout and ownership. |
+| Original HTTP API specification | `docs/IT-Service-Desk-Final-API-Specification-v1.1.md` and `docs/IT-Service-Desk-OpenAPI-v1.1.yaml` | The retained 32-operation baseline specification and snapshot. |
+| Current implementation API contract | `backend/contracts/openapi.yaml` and `backend/contracts/openapi.json` | The 33-operation contract used by the current implementation, frontend generation and contract tests. |
+| Database field descriptions | `docs/IT-Service-Desk-Database-Final-Design-v1.1.md` | Business meaning, relationships and fields of the 19 tables. |
+| Executable database schema | `backend/database/schema.sql` | Sole executable schema contract for local and RDS databases; derived from the original `IT-Service-Desk-MySQL-Schema-v1.0.sql` baseline. |
 
-For conflicts within the same area, the table above governs. Do not override current contracts with v5.0 documents, chat records, personal SQL dumps or temporary frontend fields.
+Use the current implementation contract for API integration and the canonical SQL for the executable database schema. The original 32-operation process documents do not supersede the later API-33 addition. All four process files are directly under `docs/`; the former documentation subdirectories are no longer present.
 
 ### 1.3 MVP Constants
 
@@ -451,7 +454,7 @@ B (Yujuan Gao) maintains the base fields in `tickets`; C (Andy Wen)'s workflow/S
 
 ### 7.3 Collaboration and Review Rules
 
-- Feature branch → pull request → CI → review by at least one non-author → merge. Direct pushes to `main` and history rewriting are prohibited.
+- Feature branch → pull request with local check evidence → review by at least one non-author → merge. The current GitHub Actions release workflows are manually dispatched from `main`; pushes and pull requests do not trigger them automatically. Direct pushes to `main` and history rewriting are prohibited.
 - The monorepo contains only five top-level workspaces: `frontend/`, `backend/`, `infrastructure/`, `docs/` and `.github/`. Branch names follow `<type>/WBS-<member>-<number>-<slug>`, with one short-lived branch per Trello task.
 - The domain owner retains final responsibility for correctness. Reviewers focus on contracts, permissions, database schemas and regression risks rather than taking over implementation.
 - A (BIN LIN) is Release Coordinator; B (Yujuan Gao) is Database Schema Coordinator; C (Andy Wen) is Project Coordinator; D (Yiguang Sun) is Frontend/E2E Coordinator. These four coordination roles do not replace one another.
@@ -465,374 +468,589 @@ B (Yujuan Gao) maintains the base fields in `tickets`; C (Andy Wen)'s workflow/S
 - Each member's weekly worklog records at least the date, time spent, task, result, commit/PR, test/screenshot, blocker and next action. The report cites only traceable evidence.
 - If a delay of more than two days is expected, the owner escalates to C (Andy Wen) that day. C (Andy Wen) coordinates reprioritisation or removal of non-essential scope. Feature additions/removals and state/API/architecture changes require team agreement; C (Andy Wen) cannot change scope unilaterally.
 
-### 7.5 Final Git Monorepo Structure (v6.0)
+### 7.5 Current Git Monorepo Structure
 
-The repository has only five main workspaces: `backend/`, `frontend/`, `infrastructure/`, `docs/` and `.github/`. The root contains only project-wide configuration. Organise code by domain, without personal directories such as `member-a-code/`.
+The repository has five main workspaces: `backend/`, `frontend/`, `infrastructure/`, `docs/` and `.github/`. The root contains project-wide configuration and documentation. Organise code by domain, without personal code directories.
+
+This tree was generated from all 440 files tracked on GitHub `main` at [`379bb53`](https://github.com/infs803-group8/ITSM/tree/379bb531504e78b2b293564b070f8af33b85449c), checked on 2026-10-07. It includes tracked placeholders and evidence files. Local-only folders such as `.git/`, `.venv/`, `node_modules/`, caches and build outputs are excluded. A listed path records its presence in Git, not completion of the functionality it describes.
 
 ~~~text
-it-service-desk/
+ITSM/
 ├── .github/
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── bug-report.md
 │   │   └── feature-request.md
+│   ├── actions/
+│   │   └── manual-ecs/
+│   │       └── action.yml
 │   ├── workflows/
-│   │   ├── backend-ci.yml
-│   │   ├── frontend-ci.yml
-│   │   ├── openapi-check.yml
-│   │   ├── docker-build.yml
-│   │   └── deploy-final.yml
+│   │   ├── backend.yml
+│   │   └── frontend.yml
 │   ├── CODEOWNERS
-│   ├── PULL_REQUEST_TEMPLATE.md
-│   └── dependabot.yml
+│   └── PULL_REQUEST_TEMPLATE.md
 ├── backend/
 │   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main.py
 │   │   ├── api/
 │   │   │   ├── __init__.py
-│   │   │   ├── router.py
 │   │   │   ├── dependencies.py
-│   │   │   └── exception_handlers.py
+│   │   │   ├── exception_handlers.py
+│   │   │   ├── request_id.py
+│   │   │   └── router.py
+│   │   ├── common/
+│   │   │   ├── __init__.py
+│   │   │   ├── pagination.py
+│   │   │   ├── request_context.py
+│   │   │   ├── responses.py
+│   │   │   └── validators.py
+│   │   ├── contracts/  # Internal Python interfaces shared by backend domains
+│   │   │   ├── __init__.py
+│   │   │   ├── initial_assignment.py
+│   │   │   ├── ticket_access_policy.py
+│   │   │   ├── vendor_binding.py
+│   │   │   └── workflow_read_model.py
 │   │   ├── core/
 │   │   │   ├── __init__.py
+│   │   │   ├── clock.py
 │   │   │   ├── config.py
-│   │   │   ├── security.py
 │   │   │   ├── constants.py
 │   │   │   ├── enums.py
 │   │   │   ├── errors.py
-│   │   │   ├── clock.py
-│   │   │   └── logging.py
+│   │   │   ├── logging.py
+│   │   │   └── security.py
 │   │   ├── db/
 │   │   │   ├── __init__.py
 │   │   │   ├── base.py
-│   │   │   ├── session.py
-│   │   │   ├── model_registry.py
 │   │   │   ├── bootstrap.py
+│   │   │   ├── model_registry.py
 │   │   │   ├── seed.py
 │   │   │   ├── seed_demo.py
+│   │   │   ├── session.py
 │   │   │   └── verify_schema.py
-│   │   ├── contracts/
-│   │   │   ├── ticket_access_policy.py
-│   │   │   ├── initial_assignment.py
-│   │   │   └── workflow_read_model.py
-│   │   ├── common/
-│   │   │   ├── pagination.py
-│   │   │   ├── responses.py
-│   │   │   ├── request_context.py
-│   │   │   └── validators.py
 │   │   ├── domains/
-│   │   │   ├── platform/                  # A (BIN LIN): API-01
+│   │   │   ├── assignment/  # C (Andy Wen): assignment
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── model.py
+│   │   │   │   ├── ranking.py
+│   │   │   │   ├── repository.py
 │   │   │   │   ├── router.py
 │   │   │   │   ├── schema.py
 │   │   │   │   └── service.py
-│   │   │   ├── attachments/               # A (BIN LIN): API-02～05
-│   │   │   │   ├── model.py
-│   │   │   │   ├── schema.py
-│   │   │   │   ├── repository.py
-│   │   │   │   ├── service.py
-│   │   │   │   ├── router.py
+│   │   │   ├── attachments/  # A (BIN LIN): attachments
+│   │   │   │   ├── __init__.py
 │   │   │   │   ├── access_policy.py
-│   │   │   │   └── cleanup_job.py
-│   │   │   ├── dashboard/                 # A (BIN LIN): API-06～07
-│   │   │   │   ├── schema.py
-│   │   │   │   ├── repository.py
-│   │   │   │   ├── service.py
-│   │   │   │   └── router.py
-│   │   │   ├── auth/                      # B (Yujuan Gao): API-08～09
-│   │   │   │   ├── schema.py
-│   │   │   │   ├── repository.py
-│   │   │   │   ├── service.py
-│   │   │   │   └── router.py
-│   │   │   ├── users/                     # B (Yujuan Gao): API-10～11
+│   │   │   │   ├── cleanup_job.py
 │   │   │   │   ├── model.py
-│   │   │   │   ├── schema.py
 │   │   │   │   ├── repository.py
-│   │   │   │   ├── service.py
-│   │   │   │   └── router.py
-│   │   │   ├── reference_data/            # B (Yujuan Gao): API-12～14
-│   │   │   │   ├── model.py
-│   │   │   │   ├── schema.py
-│   │   │   │   ├── repository.py
-│   │   │   │   ├── service.py
-│   │   │   │   └── router.py
-│   │   │   ├── tickets/                   # B (Yujuan Gao): API-15～18
-│   │   │   │   ├── model.py
-│   │   │   │   ├── schema.py
-│   │   │   │   ├── repository.py
-│   │   │   │   ├── service.py
 │   │   │   │   ├── router.py
-│   │   │   │   └── access_policy.py
-│   │   │   ├── comments/                  # B (Yujuan Gao): API-19～20
+│   │   │   │   ├── schema.py
+│   │   │   │   └── service.py
+│   │   │   ├── audit/  # C (Andy Wen): audit events
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── access_policy.py
 │   │   │   │   ├── model.py
-│   │   │   │   ├── schema.py
 │   │   │   │   ├── repository.py
-│   │   │   │   ├── service.py
-│   │   │   │   └── router.py
-│   │   │   ├── assignment/                # C (Andy Wen): API-21
-│   │   │   │   ├── model.py
-│   │   │   │   ├── schema.py
-│   │   │   │   ├── repository.py
-│   │   │   │   ├── service.py
-│   │   │   │   └── router.py
-│   │   │   ├── workflow/                  # C (Andy Wen): API-22～25, 28～31
-│   │   │   │   ├── schema.py
-│   │   │   │   ├── repository.py
-│   │   │   │   ├── service.py
 │   │   │   │   ├── router.py
+│   │   │   │   ├── schema.py
+│   │   │   │   └── service.py
+│   │   │   ├── auth/  # B (Yujuan Gao): authentication
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── repository.py
+│   │   │   │   ├── router.py
+│   │   │   │   ├── schema.py
+│   │   │   │   └── service.py
+│   │   │   ├── comments/  # B (Yujuan Gao): comments
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── model.py
+│   │   │   │   ├── repository.py
+│   │   │   │   ├── router.py
+│   │   │   │   ├── schema.py
+│   │   │   │   └── service.py
+│   │   │   ├── dashboard/  # A (BIN LIN): dashboards
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── repository.py
+│   │   │   │   ├── router.py
+│   │   │   │   ├── schema.py
+│   │   │   │   └── service.py
+│   │   │   ├── platform/  # A (BIN LIN): platform
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── router.py
+│   │   │   │   ├── schema.py
+│   │   │   │   └── service.py
+│   │   │   ├── reference_data/  # B (Yujuan Gao): reference data
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── model.py
+│   │   │   │   ├── repository.py
+│   │   │   │   ├── router.py
+│   │   │   │   ├── schema.py
+│   │   │   │   └── service.py
+│   │   │   ├── sla/  # C (Andy Wen): SLA and deadlines
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── cycle.py
+│   │   │   │   ├── monitor_job.py
+│   │   │   │   ├── repository.py
+│   │   │   │   └── service.py
+│   │   │   ├── tickets/  # B (Yujuan Gao): tickets
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── access_policy.py
+│   │   │   │   ├── detail_assembler.py
+│   │   │   │   ├── model.py
+│   │   │   │   ├── repository.py
+│   │   │   │   ├── router.py
+│   │   │   │   ├── schema.py
+│   │   │   │   └── service.py
+│   │   │   ├── users/  # B (Yujuan Gao): users
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── model.py
+│   │   │   │   ├── repository.py
+│   │   │   │   ├── router.py
+│   │   │   │   ├── schema.py
+│   │   │   │   └── service.py
+│   │   │   ├── vendor_workflow/  # C (Andy Wen): vendor collaboration and history
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── history.py
+│   │   │   │   ├── model.py
+│   │   │   │   ├── repository.py
+│   │   │   │   ├── router.py
+│   │   │   │   ├── schema.py
+│   │   │   │   └── service.py
+│   │   │   ├── workflow/  # C (Andy Wen): ticket workflow
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── action_engine.py
+│   │   │   │   ├── comment_gateway.py
+│   │   │   │   ├── deadline_service.py
+│   │   │   │   ├── error_mapping.py
+│   │   │   │   ├── read_model.py
+│   │   │   │   ├── repository.py
+│   │   │   │   ├── router.py
+│   │   │   │   ├── schema.py
+│   │   │   │   ├── serializer.py
+│   │   │   │   ├── service.py
 │   │   │   │   ├── state_machine.py
-│   │   │   │   └── deadline_service.py
-│   │   │   ├── vendor_workflow/           # C (Andy Wen): API-26～27
-│   │   │   │   ├── model.py
-│   │   │   │   ├── schema.py
-│   │   │   │   ├── repository.py
-│   │   │   │   ├── service.py
-│   │   │   │   └── router.py
-│   │   │   ├── audit/                     # C (Andy Wen): API-32
-│   │   │   │   ├── model.py
-│   │   │   │   ├── schema.py
-│   │   │   │   ├── repository.py
-│   │   │   │   ├── service.py
-│   │   │   │   └── router.py
-│   │   │   └── sla/                       # C (Andy Wen): Background Job
-│   │   │       ├── service.py
-│   │   │       └── monitor_job.py
+│   │   │   │   └── ticket_creation.py
+│   │   │   └── __init__.py
 │   │   ├── integrations/
-│   │   │   └── s3/
-│   │   │       ├── client.py
-│   │   │       ├── presigned_urls.py
-│   │   │       └── object_verification.py
+│   │   │   ├── s3/
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── client.py
+│   │   │   │   ├── object_verification.py
+│   │   │   │   └── presigned_urls.py
+│   │   │   └── __init__.py
+│   │   ├── __init__.py
+│   │   ├── main.py
 │   │   └── openapi_export.py
+│   ├── contracts/  # Current 33-operation OpenAPI contract for generation and tests
+│   │   ├── openapi.json
+│   │   └── openapi.yaml
 │   ├── database/
-│   │   ├── schema.sql
+│   │   ├── patches/
+│   │   │   └── README.md
 │   │   ├── release/
 │   │   │   ├── README.md
 │   │   │   ├── schema-dump.sql
 │   │   │   └── schema-verification.txt
-│   │   ├── patches/
-│   │   │   └── README.md
-│   │   └── README.md
-│   ├── tests/
-│   │   ├── conftest.py
-│   │   ├── factories/
-│   │   ├── fixtures/
-│   │   ├── unit/
-│   │   │   ├── platform/
-│   │   │   ├── attachments/
-│   │   │   ├── dashboard/
-│   │   │   ├── auth/
-│   │   │   ├── users/
-│   │   │   ├── reference_data/
-│   │   │   ├── tickets/
-│   │   │   ├── comments/
-│   │   │   ├── assignment/
-│   │   │   ├── workflow/
-│   │   │   ├── vendor_workflow/
-│   │   │   ├── audit/
-│   │   │   └── sla/
-│   │   ├── contract/
-│   │   ├── database/
-│   │   │   ├── test_empty_database_bootstrap.py
-│   │   │   ├── test_seed_idempotency.py
-│   │   │   └── test_schema_constraints.py
-│   │   ├── integration/
-│   │   └── smoke/
+│   │   ├── README.md
+│   │   └── schema.sql
 │   ├── scripts/
 │   │   ├── export_openapi.py
 │   │   ├── export_schema.ps1
-│   │   └── local_reset_database.ps1
-│   ├── .dockerignore
-│   ├── .env.example
-│   ├── Dockerfile
-│   ├── pyproject.toml
-│   ├── requirements.txt
-│   ├── requirements-dev.txt
-│   └── README.md
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── main.tsx
-│   │   ├── App.tsx
-│   │   ├── app/
-│   │   │   ├── router.tsx
-│   │   │   ├── providers.tsx
-│   │   │   └── roleRoutes.tsx
-│   │   ├── api/
-│   │   │   ├── httpClient.ts
-│   │   │   ├── errorHandler.ts
-│   │   │   └── generated/                 # Generated by D (Yiguang Sun); do not edit manually
-│   │   │       ├── client.ts
-│   │   │       └── types.ts
-│   │   ├── components/
-│   │   │   ├── layout/
-│   │   │   ├── feedback/
-│   │   │   ├── forms/
-│   │   │   └── tables/
-│   │   ├── features/
-│   │   │   ├── auth/
-│   │   │   ├── profile/
-│   │   │   ├── dashboard/
-│   │   │   ├── tickets/
-│   │   │   ├── comments/
-│   │   │   ├── attachments/
-│   │   │   ├── workflow/
-│   │   │   ├── vendor/
-│   │   │   └── audit/
-│   │   ├── hooks/
-│   │   ├── mocks/
-│   │   │   ├── browser.ts
-│   │   │   ├── handlers.ts
-│   │   │   └── fixtures/
-│   │   ├── styles/
-│   │   ├── types/
-│   │   └── utils/
+│   │   ├── local_reset_database.ps1
+│   │   └── run_mysql_integration.py
 │   ├── tests/
-│   │   ├── component/
-│   │   ├── accessibility/
-│   │   └── e2e/
-│   │       ├── user-ticket-flow.spec.ts
-│   │       ├── engineer-workflow.spec.ts
-│   │       ├── vendor-flow.spec.ts
-│   │       └── attachment-flow.spec.ts
+│   │   ├── contract/
+│   │   │   ├── .gitkeep
+│   │   │   ├── __init__.py
+│   │   │   ├── test_member_a_openapi.py
+│   │   │   ├── test_member_b_auth_openapi.py
+│   │   │   └── test_member_b_core_openapi.py
+│   │   ├── database/
+│   │   │   ├── test_empty_database_bootstrap.py
+│   │   │   ├── test_schema_constraints.py
+│   │   │   └── test_seed_idempotency.py
+│   │   ├── factories/
+│   │   │   └── .gitkeep
+│   │   ├── fixtures/
+│   │   │   └── .gitkeep
+│   │   ├── integration/
+│   │   │   ├── .gitkeep
+│   │   │   ├── __init__.py
+│   │   │   ├── test_audit_mysql.py
+│   │   │   ├── test_create_assignment.py
+│   │   │   ├── test_member_a_mysql.py
+│   │   │   ├── test_member_b_mysql.py
+│   │   │   ├── test_sla_job_recovery.py
+│   │   │   ├── test_vendor_history_mysql.py
+│   │   │   └── test_workflow_escalate_mysql.py
+│   │   ├── smoke/
+│   │   │   └── .gitkeep
+│   │   ├── unit/
+│   │   │   ├── api/
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── test_exception_handlers.py
+│   │   │   ├── assignment/
+│   │   │   │   ├── .gitkeep
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── test_assign_ticket_service.py
+│   │   │   │   ├── test_ranking.py
+│   │   │   │   └── test_service.py
+│   │   │   ├── attachments/
+│   │   │   │   ├── .gitkeep
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── test_access_policy.py
+│   │   │   │   ├── test_cleanup.py
+│   │   │   │   ├── test_model_mapping.py
+│   │   │   │   ├── test_s3_custom_domain.py
+│   │   │   │   └── test_service.py
+│   │   │   ├── audit/
+│   │   │   │   ├── .gitkeep
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── test_access_policy.py
+│   │   │   │   ├── test_model_mapping.py
+│   │   │   │   └── test_service.py
+│   │   │   ├── auth/
+│   │   │   │   ├── .gitkeep
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── test_schema.py
+│   │   │   │   ├── test_security.py
+│   │   │   │   └── test_service.py
+│   │   │   ├── comments/
+│   │   │   │   ├── .gitkeep
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── test_schema.py
+│   │   │   ├── dashboard/
+│   │   │   │   ├── .gitkeep
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── test_service.py
+│   │   │   ├── platform/
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── test_health.py
+│   │   │   ├── reference_data/
+│   │   │   │   ├── .gitkeep
+│   │   │   │   └── test_service.py
+│   │   │   ├── sla/
+│   │   │   │   ├── .gitkeep
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── test_cycle.py
+│   │   │   │   ├── test_monitor_job.py
+│   │   │   │   ├── test_service.py
+│   │   │   │   └── test_threshold_scan_service.py
+│   │   │   ├── tickets/
+│   │   │   │   ├── .gitkeep
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── test_detail_assembler.py
+│   │   │   │   ├── test_detail_assembler_visibility.py
+│   │   │   │   ├── test_schema.py
+│   │   │   │   ├── test_service_actions.py
+│   │   │   │   └── test_vendor_history_route.py
+│   │   │   ├── users/
+│   │   │   │   ├── .gitkeep
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── test_model_mapping.py
+│   │   │   │   ├── test_schema.py
+│   │   │   │   └── test_service.py
+│   │   │   ├── vendor_workflow/
+│   │   │   │   ├── .gitkeep
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── test_history.py
+│   │   │   │   ├── test_request_vendor_service.py
+│   │   │   │   └── test_vendor_response_service.py
+│   │   │   ├── workflow/
+│   │   │   │   ├── .gitkeep
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── test_action_routes.py
+│   │   │   │   ├── test_action_service.py
+│   │   │   │   ├── test_confirm_resolution_service.py
+│   │   │   │   ├── test_deadline_service.py
+│   │   │   │   ├── test_error_mapping.py
+│   │   │   │   ├── test_escalate_service.py
+│   │   │   │   ├── test_manual_close_service.py
+│   │   │   │   ├── test_read_model_serializer.py
+│   │   │   │   ├── test_reopen_service.py
+│   │   │   │   ├── test_request_user_info_service.py
+│   │   │   │   ├── test_resume_service.py
+│   │   │   │   ├── test_state_machine.py
+│   │   │   │   └── test_submit_resolution_service.py
+│   │   │   └── __init__.py
+│   │   ├── __init__.py
+│   │   └── conftest.py
 │   ├── .dockerignore
 │   ├── .env.example
 │   ├── Dockerfile
-│   ├── nginx.conf
+│   ├── README.md
+│   ├── pyproject.toml
+│   ├── requirements-dev.txt
+│   └── requirements.txt
+├── docs/  # Three Markdown process documents and one baseline OpenAPI snapshot
+│   ├── IT-Service-Desk-Database-Final-Design-v1.1.md
+│   ├── IT-Service-Desk-Final-API-Specification-v1.1.md
+│   ├── IT-Service-Desk-OpenAPI-v1.1.yaml
+│   └── IT-Service-Desk-Unified-Project-Baseline-v6.0.md
+├── frontend/  # D (Yiguang Sun): frontend and frontend tests
+│   ├── docs/
+│   │   └── evidence/
+│   │       ├── d02-login-desktop.png
+│   │       ├── d02-profile-desktop.png
+│   │       ├── d02-register-desktop.png
+│   │       ├── d03-attachments.png
+│   │       ├── d03-create-ticket.png
+│   │       ├── d03-dashboard.png
+│   │       ├── d03-engineer-workspace.png
+│   │       ├── d03-overdue.png
+│   │       ├── d03-ticket-detail.png
+│   │       ├── d03-ticket-list.png
+│   │       ├── d03-vendor-workspace.png
+│   │       └── d04-vendor-history.png
+│   ├── public/
+│   │   ├── .gitkeep
+│   │   ├── mock-download.txt
+│   │   └── mockServiceWorker.js
+│   ├── scripts/
+│   │   └── generate-api.mjs
+│   ├── src/
+│   │   ├── api/
+│   │   │   ├── generated/  # Generated output; do not edit manually
+│   │   │   │   ├── client/
+│   │   │   │   │   ├── client.gen.ts
+│   │   │   │   │   ├── index.ts
+│   │   │   │   │   ├── types.gen.ts
+│   │   │   │   │   └── utils.gen.ts
+│   │   │   │   ├── core/
+│   │   │   │   │   ├── auth.gen.ts
+│   │   │   │   │   ├── bodySerializer.gen.ts
+│   │   │   │   │   ├── params.gen.ts
+│   │   │   │   │   ├── pathSerializer.gen.ts
+│   │   │   │   │   ├── queryKeySerializer.gen.ts
+│   │   │   │   │   ├── serverSentEvents.gen.ts
+│   │   │   │   │   ├── types.gen.ts
+│   │   │   │   │   └── utils.gen.ts
+│   │   │   │   ├── client.gen.ts
+│   │   │   │   ├── contract-manifest.json
+│   │   │   │   ├── index.ts
+│   │   │   │   ├── sdk.gen.ts
+│   │   │   │   └── types.gen.ts
+│   │   │   ├── attachmentTransfer.ts
+│   │   │   ├── auth.ts
+│   │   │   ├── config.ts
+│   │   │   ├── errorHandler.ts
+│   │   │   ├── httpClient.ts
+│   │   │   ├── tokenStorage.ts
+│   │   │   └── types.ts
+│   │   ├── app/
+│   │   │   ├── providers.tsx
+│   │   │   ├── roleRoutes.tsx
+│   │   │   └── router.tsx
+│   │   ├── components/
+│   │   │   ├── feedback/
+│   │   │   │   └── .gitkeep
+│   │   │   ├── forms/
+│   │   │   │   ├── .gitkeep
+│   │   │   │   ├── PasswordInput.tsx
+│   │   │   │   └── rules.ts
+│   │   │   ├── layout/
+│   │   │   │   ├── .gitkeep
+│   │   │   │   ├── AppLayout.tsx
+│   │   │   │   ├── AuthShell.tsx
+│   │   │   │   └── Brand.tsx
+│   │   │   ├── tables/
+│   │   │   │   └── .gitkeep
+│   │   │   └── ApiErrorNotice.tsx
+│   │   ├── features/
+│   │   │   ├── attachments/
+│   │   │   │   └── .gitkeep
+│   │   │   ├── audit/
+│   │   │   │   └── .gitkeep
+│   │   │   ├── auth/
+│   │   │   │   ├── .gitkeep
+│   │   │   │   ├── AuthProvider.tsx
+│   │   │   │   ├── DevDemoAccount.tsx
+│   │   │   │   ├── LoginPage.tsx
+│   │   │   │   ├── RegisterPage.tsx
+│   │   │   │   └── roleLabels.ts
+│   │   │   ├── comments/
+│   │   │   │   └── .gitkeep
+│   │   │   ├── dashboard/
+│   │   │   │   └── .gitkeep
+│   │   │   ├── profile/
+│   │   │   │   ├── .gitkeep
+│   │   │   │   └── ProfilePage.tsx
+│   │   │   ├── tickets/
+│   │   │   │   └── .gitkeep
+│   │   │   ├── vendor/
+│   │   │   │   └── .gitkeep
+│   │   │   ├── workflow/
+│   │   │   │   └── .gitkeep
+│   │   │   └── workspace/
+│   │   │       ├── AttachmentsPanel.tsx
+│   │   │       ├── CommentsPanel.tsx
+│   │   │       ├── DashboardPage.tsx
+│   │   │       ├── TicketDetailPage.tsx
+│   │   │       ├── TicketForm.tsx
+│   │   │       ├── TicketListPage.tsx
+│   │   │       ├── VendorHistoryPanel.tsx
+│   │   │       ├── WorkflowPanel.tsx
+│   │   │       └── shared.tsx
+│   │   ├── hooks/
+│   │   │   └── .gitkeep
+│   │   ├── mocks/
+│   │   │   ├── fixtures/
+│   │   │   │   └── .gitkeep
+│   │   │   ├── browser.ts
+│   │   │   ├── fixtures.generated.json
+│   │   │   ├── handlers.ts
+│   │   │   ├── state.ts
+│   │   │   ├── validation.ts
+│   │   │   ├── workspace-fixtures.generated.json
+│   │   │   ├── workspaceHandlers.ts
+│   │   │   └── workspaceModel.ts
+│   │   ├── styles/
+│   │   │   ├── global.css
+│   │   │   └── theme.ts
+│   │   ├── types/
+│   │   │   └── .gitkeep
+│   │   ├── utils/
+│   │   │   └── .gitkeep
+│   │   ├── App.tsx
+│   │   ├── main.tsx
+│   │   └── vite-env.d.ts
+│   ├── tests/
+│   │   ├── accessibility/
+│   │   │   └── .gitkeep
+│   │   ├── api/
+│   │   │   ├── client.test.ts
+│   │   │   ├── contract.test.ts
+│   │   │   ├── contract.ts
+│   │   │   ├── errorHandler.test.ts
+│   │   │   └── workspace.test.ts
+│   │   ├── api-browser/
+│   │   │   └── api-foundation.spec.ts
+│   │   ├── auth-browser/
+│   │   │   └── auth-pages.spec.ts
+│   │   ├── component/
+│   │   │   ├── .gitkeep
+│   │   │   ├── ApiErrorNotice.test.tsx
+│   │   │   ├── auth-pages.test.tsx
+│   │   │   └── workspace.test.tsx
+│   │   ├── e2e/
+│   │   │   ├── attachment-flow.spec.ts
+│   │   │   ├── engineer-workflow.spec.ts
+│   │   │   ├── helpers.ts
+│   │   │   ├── manager-flow.spec.ts
+│   │   │   ├── user-ticket-flow.spec.ts
+│   │   │   └── vendor-flow.spec.ts
+│   │   ├── fixtures/
+│   │   │   └── debug.log
+│   │   └── setup.ts
+│   ├── .dockerignore
+│   ├── .env.example
+│   ├── .nvmrc
+│   ├── D01-HANDOFF.md
+│   ├── D02-HANDOFF.md
+│   ├── D03-HANDOFF.md
+│   ├── D04-HANDOFF.md
+│   ├── Dockerfile
+│   ├── PR51-REVIEW-FIXES.md
+│   ├── README.md
 │   ├── index.html
-│   ├── package.json
+│   ├── nginx.conf
+│   ├── openapi.config.mjs
 │   ├── package-lock.json
+│   ├── package.json
+│   ├── playwright.api.config.ts
+│   ├── playwright.auth.config.ts
 │   ├── playwright.config.ts
 │   ├── tsconfig.json
-│   ├── vite.config.ts
-│   └── README.md
-├── infrastructure/
+│   └── vite.config.ts
+├── infrastructure/  # A (BIN LIN): infrastructure and release tooling
+│   ├── ecs/
+│   │   └── task-definitions/
+│   │       └── README.md
+│   ├── environments/
+│   │   └── production.json
+│   ├── policies/
+│   │   ├── developer-s3-policy.json
+│   │   ├── ecs-task-role.json
+│   │   ├── github-actions-release.json
+│   │   └── github-actions-trust.json
+│   ├── scripts/
+│   │   ├── cleanup-aws-resources.ps1
+│   │   ├── deploy-backend.ps1
+│   │   ├── deploy-final.ps1
+│   │   ├── deploy-frontend.ps1
+│   │   ├── deploy.py
+│   │   ├── release.py
+│   │   ├── run-database-bootstrap.ps1
+│   │   ├── run-smoke-tests.ps1
+│   │   └── setup_github_oidc.py
 │   ├── terraform/
 │   │   ├── dev-storage/
 │   │   │   ├── main.tf
-│   │   │   ├── variables.tf
 │   │   │   ├── outputs.tf
-│   │   │   └── terraform.tfvars.example
+│   │   │   ├── terraform.tfvars.example
+│   │   │   ├── variables.tf
+│   │   │   └── versions.tf
 │   │   └── final/
-│   │       ├── versions.tf
-│   │       ├── providers.tf
-│   │       ├── variables.tf
-│   │       ├── locals.tf
-│   │       ├── network.tf
-│   │       ├── security_groups.tf
-│   │       ├── s3.tf
-│   │       ├── rds.tf
+│   │       ├── tests/
+│   │       │   └── release.tftest.hcl
+│   │       ├── alb.tf
+│   │       ├── budget.tf
+│   │       ├── cloudfront.tf
+│   │       ├── cloudwatch.tf
 │   │       ├── ecr.tf
 │   │       ├── ecs.tf
-│   │       ├── alb.tf
-│   │       ├── cloudfront.tf
 │   │       ├── iam.tf
-│   │       ├── secrets_manager.tf
-│   │       ├── scheduler.tf
-│   │       ├── cloudwatch.tf
-│   │       ├── budget.tf
+│   │       ├── locals.tf
+│   │       ├── network.tf
 │   │       ├── outputs.tf
-│   │       └── terraform.tfvars.example
-│   ├── ecs/task-definitions/
-│   │   ├── backend.json.tpl
-│   │   ├── frontend.json.tpl
-│   │   ├── database-bootstrap.json.tpl
-│   │   ├── sla-monitor.json.tpl
-│   │   └── attachment-cleanup.json.tpl
-│   ├── scripts/
-│   │   ├── deploy-final.ps1
-│   │   ├── run-database-bootstrap.ps1
-│   │   ├── deploy-backend.ps1
-│   │   ├── deploy-frontend.ps1
-│   │   ├── run-smoke-tests.ps1
-│   │   └── cleanup-aws-resources.ps1
-│   ├── policies/
-│   │   ├── ecs-task-role.json
-│   │   ├── github-oidc-role.json
-│   │   └── developer-s3-policy.json
-│   └── README.md
-├── docs/
-│   ├── baseline/
-│   │   ├── IT-Service-Desk-Unified-Project-Baseline-v6.0.md
-│   │   ├── v4.0-to-v5.0-changelog.md
-│   │   └── IT-Service-Desk-v5.0-to-v6.0-Corrections.md
-│   ├── architecture/
-│   │   ├── business-flow.md
-│   │   ├── state-machine.md
-│   │   ├── system-architecture.md
-│   │   ├── aws-architecture.md
-│   │   └── database-er-diagram.md
-│   ├── api/
-│   │   ├── api-list.md
-│   │   ├── error-codes.md
-│   │   ├── mock-examples.md
-│   │   └── openapi.json
-│   ├── database/
-│   │   ├── database-design.md
-│   │   ├── local-mysql-setup.md
-│   │   ├── database-bootstrap-runbook.md
-│   │   └── schema-freeze-record.md
-│   ├── development/
-│   │   ├── local-development-guide.md
-│   │   ├── git-workflow.md
-│   │   ├── coding-standards.md
-│   │   ├── testing-strategy.md
-│   │   └── definition-of-done.md
-│   ├── deployment/
-│   │   ├── aws-deployment-runbook.md
-│   │   ├── rollback-runbook.md
-│   │   ├── cost-tracking.md
-│   │   └── resource-cleanup-runbook.md
-│   ├── project-management/
-│   │   ├── member-allocation.md
-│   │   ├── milestones.md
-│   │   ├── product-backlog.md
-│   │   ├── decision-log.md
-│   │   ├── risk-register.md
-│   │   └── meetings/YYYY-MM-DD-meeting-minutes.md
-│   ├── evidence/
-│   │   ├── member-a/
-│   │   ├── member-b/
-│   │   ├── member-c/
-│   │   ├── member-d/
-│   │   ├── api-tests/
-│   │   ├── aws/
-│   │   └── trello/
-│   ├── report/
-│   │   ├── final-report.md
-│   │   ├── member-contributions.md
-│   │   ├── user-manual.md
-│   │   └── ai-usage-declaration.md
-│   └── presentation/
-│       ├── presentation-script.md
-│       ├── demo-script.md
-│       ├── slide-outline.md
-│       └── video-link.md
+│   │       ├── providers.tf
+│   │       ├── rds.tf
+│   │       ├── s3.tf
+│   │       ├── scheduler.tf
+│   │       ├── secrets_manager.tf
+│   │       ├── security_groups.tf
+│   │       ├── tasks.tf  # Executable ECS task definitions
+│   │       ├── terraform.tfvars.example
+│   │       ├── variables.tf
+│   │       └── versions.tf
+│   ├── tests/
+│   │   ├── conftest.py
+│   │   ├── test-smoke.ps1
+│   │   ├── test_deploy.py
+│   │   └── test_release.py
+│   ├── README.md
+│   ├── pyproject.toml
+│   └── requirements-release.txt
 ├── .editorconfig
 ├── .gitattributes
 ├── .gitignore
 ├── CONTRIBUTING.md
-├── docker-compose.local.yml
-└── README.md
+├── README.md
+└── docker-compose.local.yml
 ~~~
+
+`backend/app/contracts/` contains internal Python interfaces; `backend/contracts/` contains the public OpenAPI YAML/JSON consumed by generation and tests. Frontend screenshots remain under `frontend/docs/evidence/`; the root `docs/` contains only the four process documents shown above.
+
+The executable ECS task definitions are in `infrastructure/terraform/final/tasks.tf`. `infrastructure/ecs/task-definitions/README.md` points to that source; the former JSON templates are no longer tracked. Current release tooling uses `infrastructure/scripts/release.py`, `deploy.py`, `environments/production.json` and `requirements-release.txt`. GitHub OIDC setup uses `scripts/setup_github_oidc.py` and the two `policies/github-actions-*.json` files, all under `infrastructure/`.
 
 ### 7.6 Directory Ownership and Shared File Control
 
+Paths in this table are relative to the repository root. Review ownership follows [`.github/CODEOWNERS`](../.github/CODEOWNERS); coordination responsibilities do not replace those rules.
+
 | Path / File | Owner / Rule |
 |---|---|
-| `backend/domains/platform`, `attachments`, `dashboard`, `integrations/s3` | A (BIN LIN) |
-| `infrastructure/`, AWS, CI/CD, Cloud Smoke, Release | A (BIN LIN) |
-| `backend/domains/auth`, `users`, `reference_data`, `tickets`, `comments` | B (Yujuan Gao) |
-| `backend/app/db/`, `backend/database/release/` | B (Yujuan Gao) coordinates; each domain owner remains responsible for their model's correctness |
-| `backend/domains/assignment`, `workflow`, `vendor_workflow`, `audit`, `sla` | C (Andy Wen) |
-| `docs/project-management/`, Trello backlog, milestones, meeting minutes and risks | C (Andy Wen) |
-| `frontend/`, Frontend Container, Component/E2E/Manual Tests | D (Yiguang Sun) |
-| `backend/app/api/router.py` | B (Yujuan Gao) merges domain router registrations |
-| `backend/app/db/model_registry.py` | B (Yujuan Gao) merges model registrations |
-| `docs/api/openapi.json` | Generated from FastAPI; do not edit manually; API owners update it in their PRs |
-| `frontend/src/api/generated/` | D (Yiguang Sun) generates it from merged OpenAPI; do not edit manually |
-| `.github/workflows/backend-ci.yml` | A (BIN LIN) |
-| `.github/workflows/frontend-ci.yml` | D (Yiguang Sun) writes it; A (BIN LIN) reviews it |
+| `backend/app/domains/platform/`, `backend/app/domains/attachments/`, `backend/app/domains/dashboard/`, `backend/app/integrations/s3/` | A (BIN LIN): platform, attachments and dashboards. |
+| `infrastructure/`, `docker-compose.local.yml` | A (BIN LIN): AWS infrastructure, release tooling and local MySQL setup. |
+| `backend/app/domains/auth/`, `backend/app/domains/users/`, `backend/app/domains/reference_data/`, `backend/app/domains/tickets/`, `backend/app/domains/comments/` | B (Yujuan Gao): authentication and core ticket data. |
+| `backend/app/db/`, `backend/database/` | Shared A (BIN LIN)/B (Yujuan Gao)/C (Andy Wen) review; B coordinates schema and model alignment. |
+| `backend/app/domains/assignment/`, `backend/app/domains/workflow/`, `backend/app/domains/vendor_workflow/`, `backend/app/domains/audit/`, `backend/app/domains/sla/` | C (Andy Wen): assignment, workflows, vendor collaboration, auditing and SLA. |
+| `docs/` | Shared A (BIN LIN)/B (Yujuan Gao)/C (Andy Wen)/D (Yiguang Sun) review of the retained process documents. Project coordination and Trello remain C's responsibility; the former project-management documentation directory has been removed. |
+| `docs/IT-Service-Desk-Database-Final-Design-v1.1.md` | Shared A (BIN LIN)/B (Yujuan Gao)/C (Andy Wen) review, as specified by the more specific CODEOWNERS rule. |
+| `frontend/` | D (Yiguang Sun): pages, frontend container and frontend tests. |
+| `backend/app/api/router.py`, `backend/app/db/model_registry.py` | Shared backend ownership; B coordinates router and model registrations. |
+| `backend/contracts/openapi.yaml`, `backend/contracts/openapi.json` | Shared A (BIN LIN)/B (Yujuan Gao)/C (Andy Wen)/D (Yiguang Sun) contract review. API owners update the implementation contract and affected tests together. |
+| `backend/scripts/export_openapi.py` | Writes `backend/contracts/openapi.json`; `--contract-only` converts the approved YAML, while the default mode exports the runtime FastAPI schema. Do not hand-edit generated JSON. |
+| `frontend/openapi.config.mjs`, `frontend/scripts/generate-api.mjs`, `frontend/src/api/generated/` | D (Yiguang Sun): generation reads `backend/contracts/openapi.yaml`; generated SDK, types and manifest are committed, not manually edited. |
+| `.github/workflows/backend.yml`, `.github/workflows/frontend.yml`, `.github/actions/manual-ecs/action.yml` | Shared A (BIN LIN)/C (Andy Wen) review under the `.github/` CODEOWNERS rule. These are the current manually dispatched release workflows and their common action. |
 
-A (BIN LIN)/B (Yujuan Gao)/C (Andy Wen)/D (Yiguang Sun) in `CODEOWNERS` are only role labels used in this document. When creating the repository, replace them with the four members' actual GitHub usernames; otherwise GitHub will not automatically request reviews.
+The current CODEOWNERS entries use the actual GitHub usernames: A (BIN LIN) is `@BIN-LIN-AUT2026`, B (Yujuan Gao) is `@Nicole-Gao2026`, C (Andy Wen) is `@andywen-aut`, and D (Yiguang Sun) is `@Yiguang-Sun`.
 
 ### 7.7 Database and Local Runtime File Rules
 
