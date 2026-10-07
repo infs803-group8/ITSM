@@ -369,12 +369,13 @@ class WorkflowRepository:
         CONFIRMATION, and IN_PROGRESS is such a status. This is a no-op
         for the INFORMATION_REQUIRED path (those columns are already
         NULL there) and the actual clear for the RESOLUTION_CONFIRMATION
-        (Issue Persists) path -- C027.04's "清空当前待确认方案字段" -- the
+        (Issue Persists) path -- C027.04's requirement to clear the current
+        resolution fields awaiting confirmation -- the
         engineer's superseded resolution_summary is never carried forward
         into the new IN_PROGRESS cycle. Nothing in ticket_events is
         touched, so the RESOLUTION_SUBMITTED event for that superseded
         attempt (and any earlier SLA history) remains queryable exactly
-        as C027.04's "保留历史" requires.
+        as C027.04's "preserve history" requires.
         """
         self.database.execute(
             text(

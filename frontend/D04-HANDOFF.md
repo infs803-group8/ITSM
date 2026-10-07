@@ -1,46 +1,46 @@
-# D04 Vendor 历史读取交接
+# D04 Vendor history handoff
 
-## 分支与范围
+## Branch and scope
 
-- 分支：`feature/WBS-D04-vendor-history`，从已合并 PR #51/#52/#53 的 main `6fcde23` 创建。
-- 只修改 `frontend/`；未修改 backend、OpenAPI、数据库、依赖或锁文件。
-- 本轮不提交、不推送、不创建 PR，等待用户确认。
+- Branch: `feature/WBS-D04-vendor-history`, created from main `6fcde23` after PR #51/#52/#53 were merged.
+- Changed only `frontend/`; backend, OpenAPI, database, dependencies and lockfile were unchanged.
+- At this handoff, no commit, push or PR was made; user confirmation was pending.
 
-## 完成内容
+## Completed work
 
-1. 以最新 `docs/api/openapi.yaml` 重新运行固定版本生成器，正式 SDK 从 32 个 operation 更新为 33 个，并生成 `api33ListVendorRequestHistory`、`VendorRequestHistoryView/Response` 和对应合同 fixture/hash。
-2. 工单详情新增 **Vendor history** 标签页，直接调用 `GET /tickets/{id}/vendor-requests`，显示按时间顺序保存的请求、组织、状态、正文及可空回复。
-3. 权限入口与合同一致：Tier 2 / Manager 可以读取可见工单的全部历史；Vendor 仅看到本组织；USER / Tier 1 不显示标签页也不发 API-33 请求。
-4. Vendor 回复表单仍通过 API-27 写入，但页面不保存或展示该临时回包。成功后使工单查询失效并重新读取 API-33；退出登录会清空缓存，重新登录后再次读取 API-33；页面的 **Refresh ticket** 会同时刷新详情与当前打开的历史。
-5. API-32 Activity 继续只显示审计事件，metadata 保持 `{}`，不复制完整 Vendor 回复正文。
-6. Mock 新增多组织历史、已回复/未回复/已取消数据；请求 Vendor、Vendor 回复和提交方案取消请求时同步持久化历史状态，以便本地页面演示和回归。
+1. Reran the pinned generator against the latest contract, now located at `backend/contracts/openapi.yaml`. The SDK increased from 32 to 33 operations, generating `api33ListVendorRequestHistory`, `VendorRequestHistoryView/Response` and the corresponding contract fixtures/hash.
+2. Added a **Vendor history** tab to ticket detail, calling `GET /tickets/{id}/vendor-requests` directly to display persisted requests, organisations, states, messages and nullable replies in chronological order.
+3. Access matches the contract: Tier 2 / Manager can read all history for visible tickets; Vendor sees only its own organisation; USER / Tier 1 neither sees the tab nor sends API-33 requests.
+4. Vendor replies still use API-27, but the page neither stores nor displays that temporary response. Success invalidates ticket queries and reloads API-33. Sign-out clears the cache; a new login reads API-33 again. **Refresh ticket** refreshes both detail and any open history view.
+5. API-32 Activity continues to show audit events only. Metadata remains `{}` and does not copy full Vendor reply text.
+6. Mocks add multi-organisation history and replied/unanswered/cancelled records. Requesting a Vendor, replying and cancelling requests when submitting a resolution also update stored Mock history for local demonstrations and regression tests.
 
-## 主要文件
+## Main files
 
-- `src/api/generated/`、`src/mocks/workspace-fixtures.generated.json`：API-33 正式生成结果。
-- `src/features/workspace/VendorHistoryPanel.tsx`：持久化历史页面。
-- `src/features/workspace/TicketDetailPage.tsx`、`WorkflowPanel.tsx`、`styles/global.css`：角色入口、回复上下文和桌面样式。
-- `src/mocks/state.ts`、`workspaceModel.ts`、`workspaceHandlers.ts`、`handlers.ts`：API-33 Mock、组织隔离和状态持久化。
-- `tests/api/contract.test.ts`、`workspace.test.ts`：33 项合同、权限、组织隔离、写后读取。
-- `tests/component/workspace.test.tsx`：授权入口、错误重试、未授权角色不发请求。
-- `tests/e2e/vendor-flow.spec.ts`：Vendor 提交后 API-33 重读、重新登录仍可读、Tier 2 全历史及 Activity 不泄露正文。
+- `src/api/generated/`, `src/mocks/workspace-fixtures.generated.json`: generated API-33 outputs.
+- `src/features/workspace/VendorHistoryPanel.tsx`: persisted-history view.
+- `src/features/workspace/TicketDetailPage.tsx`, `WorkflowPanel.tsx`, `styles/global.css`: role entry points, reply context and desktop styling.
+- `src/mocks/state.ts`, `workspaceModel.ts`, `workspaceHandlers.ts`, `handlers.ts`: API-33 Mocks, organisation isolation and stored state.
+- `tests/api/contract.test.ts`, `workspace.test.ts`: 33-operation contract coverage, permissions, organisation isolation and reads after writes.
+- `tests/component/workspace.test.tsx`: authorized entry, error retry and no requests for unauthorized roles.
+- `tests/e2e/vendor-flow.spec.ts`: API-33 reread after a Vendor reply, reading after a new login, Tier 2 full history and no reply-text leakage through Activity.
 
-## 仍需真实环境验证
+## Real-environment verification still required
 
-- 使用真实 Python/MySQL 账号验证 API-33 的跨会话持久化、历史顺序、多组织隔离和 403/404 行为。
-- 云端验证 CORS、鉴权过期、同源 `/api/v1` 路由及 Vendor 附件/S3 联调。
-- 本地 Mock 会在整个页面刷新时重置；浏览器自动化以“退出后重新登录”验证新的会话重新请求 API-33，数据库跨进程持久化必须由真实后端联调确认。
+- Verify API-33 persistence across sessions, ordering, organisation isolation and 403/404 behavior with real Python/MySQL accounts.
+- Verify cloud CORS, authentication expiry, same-origin `/api/v1` routing and Vendor attachment/S3 integration.
+- A full page refresh resets local Mocks. Browser automation checks that signing out and logging in starts a new session that requests API-33 again. Database persistence across processes still requires real-backend integration.
 
-## 验证记录
+## Verification record
 
-2026-09-28：
+2026-09-28:
 
-- `npm run check`：API 生成一致性、TypeScript、**134 项单元/组件测试**和生产构建通过。
-- `npm run test:api:browser`：3 项通过。
-- `npm run test:auth:e2e`：6 项通过。
-- `npm run test:e2e`：7 项通过，其中 Vendor 流程覆盖 API-33 写后重读、重新登录、Tier 2 全历史、Vendor 组织隔离及审计 metadata 不承载正文。
-- `git diff --check`：通过；改动范围仅 `frontend/`。
-- 新截图：`docs/evidence/d04-vendor-history.png`。其他 D03 证据图随完整浏览器测试重新生成。
-- 生产构建成功，保留原有非阻塞大包提示：主 JavaScript 约 723 kB / gzip 234 kB。
-- 检查时发现并已修复一个额外问题：顶部 **Refresh ticket** 原本只刷新 API-17；现在会刷新整个工单查询子树，包括当前打开的 API-33 历史。
-- 没有发现新的前端阻塞问题；尚未运行真实 Python/MySQL/S3 或云端部署联调。
+- `npm run check`: API generation consistency, TypeScript, **134 unit/component tests** and production build passed.
+- `npm run test:api:browser`: three passed.
+- `npm run test:auth:e2e`: six passed.
+- `npm run test:e2e`: seven passed. Vendor coverage includes API-33 reads after writes, new login, Tier 2 full history, organisation isolation and audit metadata without reply bodies.
+- `git diff --check` passed; changes were confined to `frontend/`.
+- New screenshot: `docs/evidence/d04-vendor-history.png`. Other D03 evidence images were regenerated by the full browser suite.
+- The production build passed with the existing non-blocking size warning: main JavaScript about 723 kB / gzip 234 kB.
+- An additional issue found during verification was fixed: **Refresh ticket** previously refreshed only API-17; it now refreshes the entire ticket-query subtree, including an open API-33 history view.
+- No new frontend blockers were found. Real Python/MySQL/S3 or cloud-deployment integration had not been run.

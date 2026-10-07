@@ -37,7 +37,7 @@ class RequestVendorService:
     """API-26 Request Vendor (C029): IN_PROGRESS -> PENDING_VENDOR,
     current Tier 2 assignee only. ``state_machine._eval_request_vendor``'s
     ``cycle_effect`` is "KEEP" -- the Engineering SLA cycle is left
-    completely untouched (C029.04's "保持工程 SLA"), and its own
+    completely untouched (C029.04's "preserve the engineering SLA"), and its own
     ``has_active_vendor_request`` check is the ordinary-case guard
     against a second concurrent ACTIVE request, already denying with
     ``VENDOR_REQUEST_ALREADY_ACTIVE`` (-> public ``ACTIVE_VENDOR_REQUEST_

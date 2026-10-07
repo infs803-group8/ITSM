@@ -33,7 +33,7 @@ def test_member_b_write_models_forbid_additional_fields():
 
 
 def test_api_33_checked_in_contract_has_history_schema_and_example():
-    contract_path = Path(__file__).resolve().parents[3] / "docs" / "api" / "openapi.yaml"
+    contract_path = Path(__file__).resolve().parents[3] / "backend" / "contracts" / "openapi.yaml"
     contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
     operation = contract["paths"]["/tickets/{id}/vendor-requests"]["get"]
 

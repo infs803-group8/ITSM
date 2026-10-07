@@ -82,7 +82,7 @@ try {
   }
   if (Object.keys(fixtures).length !== mockOperations.size) throw new Error("A baseline Mock operation is missing from the contract.");
   const manifest = {
-    source: "docs/api/openapi.yaml",
+    source: "backend/contracts/openapi.yaml",
     version: contract.info.version,
     sha256: createHash("sha256").update(source).digest("hex"),
     operations: operationCount,

@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 export const frontendRoot = fileURLToPath(new URL(".", import.meta.url));
-export const contractPath = path.resolve(frontendRoot, "../docs/api/openapi.yaml");
+export const contractPath = path.resolve(frontendRoot, "../backend/contracts/openapi.yaml");
 
 // The staging root has the same layout, so generated imports are reproducible.
 export function generatorConfig(outputRoot = frontendRoot) {

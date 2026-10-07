@@ -1,11 +1,11 @@
 """Lazy + job-shared deadline enforcement (tasks C018, C019).
 
-Baseline §4.7's "统一顺序" (lock -> re-validate -> update -> append event
+Baseline §4.7's "shared operation order" (lock -> re-validate -> update -> append event
 -> commit) is owned by the caller (an API handler for the lazy path, or
 the standalone SLA/deadline monitor job for the scheduled path); this
 module is the one place that DECIDES what an expired deadline means and
 does the actual field/event writes, so both callers can never disagree
-about it (baseline §4.2's "API-24/API-29 与 SLA Job 复用同一 Deadline
+about it (baseline §4.2's "API-24/API-29 and the SLA Job share the same Deadline
 Enforcement").
 
 Neither method here reads the clock -- callers always supply ``now`` --
@@ -165,9 +165,9 @@ class DeadlineService:
 
     # ------------------------------------------------------------------
     # C020: the "auto outcome already committed, now return a conflict"
-    # boundary. baseline §4.6: "API-24/API-29 在 120h 边界先执行 Auto
-    # Resolve，再返回 409 USER_RESPONSE_WINDOW_EXPIRED；API-30/API-31 在
-    # 7d 边界先执行 Auto Close，再返回 TICKET_CLOSED". These commit the
+    # boundary. Baseline §4.6: API-24/API-29 first auto-resolve at 120h,
+    # then return 409 USER_RESPONSE_WINDOW_EXPIRED; API-30/API-31 first
+    # auto-close at 7d, then return TICKET_CLOSED. These commit the
     # auto outcome THEMSELVES (independent of whatever the caller's own
     # transaction was about to do), then raise -- so a later rollback by
     # the caller's exception handler can never undo a result this method

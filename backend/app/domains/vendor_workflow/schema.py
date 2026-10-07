@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 
 class VendorRequestCreate(BaseModel):
-    """docs/api/openapi.yaml: VendorRequestCreate (API-26)."""
+    """backend/contracts/openapi.yaml: VendorRequestCreate (API-26)."""
 
     vendor_org_id: int
     vendor_message: str = Field(min_length=1, max_length=4000)
@@ -21,7 +21,7 @@ class VendorRequestCreate(BaseModel):
 
 
 class VendorResponseRequest(BaseModel):
-    """docs/api/openapi.yaml: VendorResponseRequest (API-27)."""
+    """backend/contracts/openapi.yaml: VendorResponseRequest (API-27)."""
 
     message: str = Field(min_length=1, max_length=4000)
 

@@ -11,7 +11,7 @@ import { contract, operations, assertResponse, successExample } from "./contract
 
 describe("generated API / source contract alignment", () => {
   it("detects a contract change that has not been regenerated", () => {
-    const source = readFileSync(fileURLToPath(new URL("../../../docs/api/openapi.yaml", import.meta.url)), "utf8").replace(/\r\n/g, "\n");
+    const source = readFileSync(fileURLToPath(new URL("../../../backend/contracts/openapi.yaml", import.meta.url)), "utf8").replace(/\r\n/g, "\n");
     expect(manifest.sha256).toBe(createHash("sha256").update(source).digest("hex"));
   });
   it("exposes all 33 operationId functions", () => {

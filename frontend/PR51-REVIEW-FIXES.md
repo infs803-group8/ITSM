@@ -1,61 +1,61 @@
-# PR #51 R1–R4 本地修复与 R3 协调说明
+# PR #51 R1–R4 local fixes and R3 coordination notes
 
-> 后续状态：本文件记录的是 PR #51 审核时的缺口。PR #53 已在 main 增加 API-33；D04 已重新生成客户端并接入持久化 Vendor 历史读取。当前实现与验证见 [D04-HANDOFF.md](D04-HANDOFF.md)。
+> Follow-up status: this file records gaps identified during PR #51 review. PR #53 added API-33 to main; D04 regenerated the client and integrated persisted Vendor history reads. See [D04-HANDOFF.md](D04-HANDOFF.md) for the current implementation and verification.
 
-日期：2026-09-28。分支：`feature/WBS-D03-ticket-workspace`。
-审核基准：`499767e1021dcc3b51cc1272ddc1ff9cc51c8a0e`。
-本轮仅修改 `frontend/`，未修改 backend、OpenAPI、数据库、依赖或锁文件。修复先在本地完成并报告；用户随后确认将这些修改提交至现有 PR #51。最终提交 SHA 以该 PR 的修复提交为准。
+Date: 2026-09-28. Branch: `feature/WBS-D03-ticket-workspace`.
+Review baseline: `499767e1021dcc3b51cc1272ddc1ff9cc51c8a0e`.
+These fixes changed only `frontend/`, without backend, OpenAPI, database, dependency or lockfile changes. They were completed and reported locally first; the user then authorized submission to existing PR #51. See that PR's fix commit for the final SHA.
 
-## 本地修复范围
+## Local fixes
 
-| 项目 | 改动位置 | 处理结果 |
+| Item | Location | Result |
 | --- | --- | --- |
-| R1 | `src/api/attachmentTransfer.ts`、`AttachmentsPanel.tsx` | 单次解析参考数据白名单中的扩展名/MIME；仅在 File.type 为空时补齐。校验与 API-02 共用结果，保留拒绝规则和原始 signed-header PUT |
-| R2 | `src/features/workspace/shared.tsx`、附件/评论/工单/工作流表单 | 下载使用独立读取助手，防重复、错误、卸载保护不变且不影响查询。写入范围收窄，失败恢复仍活跃的被取消读取，成功刷新受影响数据 |
-| R3（D） | `src/mocks/workspaceHandlers.ts`、API/浏览器测试、README、D03-HANDOFF | 移除回复事件中虚构的正文 metadata，按当前后端返回 `{}`。测试区分提交成功、状态/事件变化与缺失的持久化读取 |
-| R4 | `src/features/workspace/WorkflowPanel.tsx` | CLOSE 1,000，REOPEN 4,000，输入与提交双层校验，保留关闭理由选填和重开非空规则 |
+| R1 | `src/api/attachmentTransfer.ts`, `AttachmentsPanel.tsx` | Resolve extension/MIME once from the reference-data allowlist, filling only an empty File.type; validation and API-02 reuse that result, preserving rejection rules and raw signed-header PUT |
+| R2 | `src/features/workspace/shared.tsx`, attachment/comment/ticket/workflow forms | Downloads use a separate read helper with duplicate/error/unmount protection and no query interference; writes cancel a narrower scope, resume cancelled active reads on failure and refresh affected data on success |
+| R3 (D) | `src/mocks/workspaceHandlers.ts`, API/browser tests, README, D03-HANDOFF | Removed invented reply-body event metadata and returned `{}` to match the backend; tests distinguish successful submission/state/event changes from missing persisted reads |
+| R4 | `src/features/workspace/WorkflowPanel.tsx` | CLOSE limit 1,000 and REOPEN limit 4,000, validated at input and submission; close reason remains optional and reopen requires nonblank text |
 
-回归测试位置：
+Regression locations:
 
-- `tests/component/workspace.test.tsx`：空 MIME 与拒绝边界、延迟参考数据期间下载成功/失败、防重复下载、卸载拒绝迟到结果、写入范围及失败后的读取恢复、关闭/重开长度边界。
-- `tests/e2e/attachment-flow.spec.ts` + `tests/fixtures/debug.log`：从真实磁盘路径选文件，不注入 MIME，检查空 File.type、presign text/plain、signed-header 原始 PUT、不带 API Bearer、完成顺序。
-- `tests/api/workspace.test.ts` + `tests/e2e/vendor-flow.spec.ts`：API-27 即时返回回复，API-32 metadata 不含正文，Tier 2 重进只能看到事件，不能据此宣称正文读取完成。
+- `tests/component/workspace.test.tsx`: empty MIME and rejection boundaries; download success/failure while reference data is delayed; duplicate-download prevention; rejection of late results after unmount; write scope and read recovery after failure; close/reopen length boundaries.
+- `tests/e2e/attachment-flow.spec.ts` + `tests/fixtures/debug.log`: select a real disk file without injecting MIME; check empty File.type, text/plain presign, raw signed-header PUT without API Bearer and completion order.
+- `tests/api/workspace.test.ts` + `tests/e2e/vendor-flow.spec.ts`: API-27 returns the reply immediately, while API-32 metadata contains no reply body. At this stage a returning Tier 2 user saw only events, which did not establish completed reply reading.
 
-## 可转发给 B/C：R3 / Q03 需要完成什么
+## Coordination note for B/C: remaining R3 / Q03 work at review time
 
-PR #51 R3 核查到一个已有的读取缺口，而不是回复没有保存：
+PR #51 R3 identified an existing read gap, not a failure to save replies:
 
-1. `backend/app/domains/vendor_workflow/service.py` 的 `VendorResponseService.respond()` 已调用 repository 保存回复，但追加 `VENDOR_RESPONDED` 事件时未传正文 metadata。
-2. `backend/app/domains/audit/service.py` 只返回存储的 metadata；空值为 `{}`，不会补回复正文。
-3. API-27 写入响应有 `vendor_response.message`；但 API-17 的 `TicketDetail.vendor_request` 没有回复正文，API-32 也读不到正文。工程师之后重新打开工单或换会话，无法取得已保存回复及历史讨论。
+1. `VendorResponseService.respond()` in `backend/app/domains/vendor_workflow/service.py` already called the repository to save the response, but did not pass reply-body metadata when appending `VENDOR_RESPONDED`.
+2. `backend/app/domains/audit/service.py` returned only stored metadata, using `{}` for empty values; it did not fill in reply text.
+3. The API-27 write response included `vendor_response.message`, but API-17's `TicketDetail.vendor_request` and API-32 did not expose the reply body. An engineer reopening a ticket or starting another session could not retrieve the saved reply/discussion history.
 
-请 **C 主责、B 配合**，按 `docs/project-management/decision-log.md` 的 Q03 推进：
+**C was to lead, with B supporting**, following the original Q03 decision proposal:
 
-- 先由团队确认读取合同。Q03 的 `GET /tickets/{id}/vendor-requests` 只是草案，不能直接当作已批准接口；也可评估对现有详情字段的改造，但需要明确决定。若新增接口，要同步 API 总数、OpenAPI、项目基线和决策记录。
-- 合同需明确：请求/回复关联 ID、正文、时间、未回复时的空值、历史顺序/分页，以及 ACTIVE/RESPONDED/CANCELLED 请求的读取规则；给出成功及无权限示例。
-- C 实现数据库持久化读取与供应商组织隔离；B 配合 tickets 路由注册、详情跨域字段/序列化和合同对齐。保持已有工单权限范围，不因历史读取扩大工单访问权限。
-- 授权 Tier 2 / Manager 可读其工单权限范围内的历史；Vendor 仅本组织当前/历史记录；USER 和 Tier 1 不得读到供应商协作正文，也不能通过猜 ID 越权读取其他组织。
-- 后端验收：回复写入后，授权 Tier 2 离开再进入、重新登录或另一个授权会话仍可读取正文；覆盖历史多请求、多组织隔离、无回复、关闭/取消等状态及无权限情形。提交相应合同/集成测试。
-- **不要把完整正文复制进审计 metadata，也不要用前端缓存 API-27 的回包代替持久化读取。**
+- Confirm the read contract with the team first. Q03's proposed `GET /tickets/{id}/vendor-requests` was still a draft, not an approved interface. Changes to existing detail fields were another option requiring an explicit decision. A new endpoint required synchronized API count, OpenAPI, baseline and decision-record updates.
+- Specify request/reply association IDs, bodies, timestamps, nulls for unanswered requests, history order/pagination and read rules for ACTIVE/RESPONDED/CANCELLED requests; include success and unauthorized examples.
+- C implements persistent database reads and Vendor organisation isolation. B supports ticket-route registration, cross-domain detail fields/serialization and contract alignment. Historical reading must preserve existing ticket-access scope.
+- Authorized Tier 2 / Manager users can read history within their ticket scope; Vendor can read only its organisation's current/history records. USER and Tier 1 cannot read Vendor collaboration bodies, and guessed IDs must not grant access to another organisation.
+- Backend acceptance must verify that an authorized Tier 2 user can read the saved response after leaving/reopening, logging in again or using another authorized session. Cover multiple historical requests, organisation isolation, unanswered requests, closed/cancelled states and unauthorized cases, with contract/integration tests.
+- **Do not copy full response bodies into audit metadata or substitute frontend caching of API-27 responses for persisted reads.**
 
-D 已修正 Mock、测试与完成情况说明。待上述合同及实现落地，D 再重新生成客户端、添加回复/历史读取页面并完成真实联调。当前 Q03 仍未完成，不能把“提交回复测试通过”当成“供应商讨论功能全部完成”。
+D had corrected the Mocks, tests and completion notes. Once the contract and backend implementation were ready, D would regenerate the client, add the reply/history view and perform real integration. Q03 remained incomplete at the time of this review; passing a reply-submission test did not establish a complete Vendor discussion feature. The follow-up note at the top records its later resolution.
 
-## 验证结果
+## Verification results
 
-2026-09-28 本地验证：
+Local verification on 2026-09-28:
 
-- `npm run check`：生成文件一致性、TypeScript、129 项单元/组件测试、生产构建全部通过（原 117 项，新增 12 项；另有原测试补强）。
-- `npm run test:api:browser`：3 项通过。
-- `npm run test:auth:e2e`：6 项通过。
-- `npm run test:e2e`：7 项通过，包括真实磁盘 `.log` 的空 MIME 上传，以及关闭/重开生命周期。
-- 关闭 1,000 / 重开 4,000 字符的合法请求通过原有合同校验 Mock，断言实际状态转为 CLOSED / REOPENED；超限在 HTTP 前拦截。
-- `git diff --check`：通过。所有修改及新增文件均在 `frontend/`；验证时尚未提交，修复基于 `499767e`。
-- 浏览器测试刷新了 6 张 `docs/evidence/d03-*.png` 证据图；已检查真实 `.log` 上传成功截图。
-- 构建仍有原有的非阻塞大包警告：主 JS 721.67 kB / gzip 233.69 kB；未提高阈值隐藏提示。
+- `npm run check`: generation consistency, TypeScript, 129 unit/component tests and production build all passed, up from 117 with 12 new tests and strengthened existing cases.
+- `npm run test:api:browser`: three passed.
+- `npm run test:auth:e2e`: six passed.
+- `npm run test:e2e`: seven passed, including a real disk `.log` upload with empty MIME and the close/reopen lifecycle.
+- Valid close requests at 1,000 characters and reopen requests at 4,000 passed the existing contract-validation Mock, with actual CLOSED / REOPENED state assertions; over-limit inputs were blocked before HTTP.
+- `git diff --check` passed. All changes/new files were under `frontend/`; verification preceded committing and used baseline `499767e`.
+- Browser tests refreshed six `docs/evidence/d03-*.png` images. The successful real `.log` upload screenshot was inspected.
+- The existing non-blocking bundle warning remained: main JavaScript 721.67 kB / gzip 233.69 kB. The warning threshold was not raised.
 
-真实 Python / MySQL / S3 联调不在本轮完成声明内；对象字节下载、CORS、签名过期、后端授权仍需与相应成员联调。
+Real Python/MySQL/S3 integration is outside these results. Downloaded object bytes, CORS, signature expiry and backend authorization still require integration with the responsible members.
 
-## PR #51 英文修复说明参考
+## PR #51 fix-description reference
 
 ### Trello / WBS task
 
@@ -78,4 +78,4 @@ D03 — service desk workspace; PR #51 review follow-up (R1–R4).
 
 ### Reviewer notes
 
-Persisted vendor reply/history reading remains incomplete pending Q03 (C lead, B contract/routing coordination, D frontend consumer). API-27 submission and state transitions are tested separately; no complete vendor discussion flow or real Python/MySQL/S3 integration is claimed.
+At the time of PR #51 review, persisted Vendor reply/history reading remained incomplete pending Q03: C led, B coordinated contract/routing and D consumed the frontend API. API-27 submission and state transitions were tested separately; no complete Vendor discussion flow or real Python/MySQL/S3 integration was claimed. PR #53 and D04 subsequently addressed the history-reading gap, as recorded above.

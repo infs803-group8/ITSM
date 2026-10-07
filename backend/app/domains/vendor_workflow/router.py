@@ -1,6 +1,6 @@
 """vendor_workflow API routes (C029 onward).
 
-Implemented exactly as docs/api/openapi.yaml specifies per operation.
+Implemented exactly as backend/contracts/openapi.yaml specifies per operation.
 Reuses ``workflow.router``'s ``error_responses``/``build_ticket_action_response``
 helpers rather than duplicating them -- this domain's actions still return
 the same shared ``TicketActionResponse`` contract every C024-C034 write-path

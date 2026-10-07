@@ -6,8 +6,8 @@
 - `scripts/release.py` resolves component-prefixed tags to immutable digests, preserves
   active task configuration, verifies rollout/health, and rolls back failed releases.
 - `scripts/setup_github_oidc.py` previews the checked-in IAM policies; `--apply` creates
-  the OIDC provider and project-scoped release role. See
-  [GitHub Actions setup and usage](../docs/deployment/github-actions.md).
+  the OIDC provider and project-scoped release role. The shared release steps
+  are defined in [manual-ecs/action.yml](../.github/actions/manual-ecs/action.yml).
 
 - `terraform/dev-storage/` manages the existing shared S3 bucket after import; object expiry is disabled.
 - `terraform/final/` defines idle ECS services, full task definitions, private RDS,
@@ -19,8 +19,9 @@
 
 A commit creates no AWS resource. Review placeholders, run `terraform plan`, and obtain team approval before applying.
 
-Use `docs/deployment/aws-deployment-runbook.md` for configuration, S3 import,
-bootstrap, release and verification. Member B's database bootstrap/seed implementation
+Review the checked-in environment configuration, Terraform stacks and deployment
+scripts for configuration, S3 import, bootstrap, release and verification.
+Member B's database bootstrap/seed implementation
 and Member C's SLA implementation remain required inputs for their respective tasks.
 Deployment tests use stubbed AWS clients and Terraform mock providers; live AWS
 integration must still be performed during the planned cloud milestone.

@@ -273,7 +273,7 @@ class EscalateTicketService:
     escalate``'s ``cycle_effect`` is "KEEP" for this action, so no SLA
     repository/service call is made here at all -- the current cycle,
     deadline and any already-recorded overdue fact are left completely
-    untouched (C028.03's "保留原 Cycle/Deadline/逾期事实").
+    untouched (C028.03's "preserve the original cycle, deadline and recorded overdue status").
 
     Reuses ``AssignmentRepository.get_target_engineer``/``apply_
     assignment`` from C024 rather than duplicating them here -- both

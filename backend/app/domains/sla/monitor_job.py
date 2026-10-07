@@ -25,8 +25,8 @@ evaluate_threshold_scan``, ``DeadlineService.check_pending_user_timeout``,
 adds no new business logic of its own, only the batch-scan wiring around
 those three.
 
-No dry-run mode is implemented (C036.04 makes it optional -- "若增加
-dry-run" -- and it is skipped here to keep this task's scope to what the
+No dry-run mode is implemented (C036.04 makes it optional -- "if dry-run
+mode is added" -- and it is skipped here to keep this task's scope to what the
 checklist requires); ``run_once`` and its exit code are what C036.04
 actually requires, and both exist below.
 """
@@ -169,7 +169,7 @@ class SlaMonitorJob:
         """C036.01/.04: one full pass over all three candidate families,
         then return -- never loops on a timer itself.
 
-        ``now`` is injectable (C036.06's "冻结时钟" requirement) so a test
+        ``now`` is injectable (C036.06's "frozen clock" requirement) so a test
         can freeze time and assert exact threshold-crossing behaviour;
         production callers (``main()`` below) leave it as the real clock.
         """

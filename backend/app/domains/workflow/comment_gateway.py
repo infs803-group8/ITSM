@@ -7,8 +7,8 @@ Member B's ``comments`` domain (``model.py``/``repository.py``/
 ``service.py``) is still an empty scaffold -- see
 ``backend/app/domains/comments/*.py`` -- so there is no in-transaction
 Comment repository interface yet for C to call, as
-``docs/成员C开发项目管理.md``'s C026 "Owner 与协作" line describes ("B 提供
-事务内 Comment 接口；C 调用" -- B provides an in-transaction Comment
+the original Member C project-management checklist's C026 "Ownership and
+collaboration" item describes (B provides an in-transaction Comment
 interface; C calls it). Rather than block on B's domain, or call the
 plain HTTP API-20 endpoint (explicitly forbidden by C026.02: a second,
 separate HTTP request/transaction would defeat the whole point of

@@ -7,8 +7,8 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-YAML_CONTRACT = ROOT / "docs" / "api" / "openapi.yaml"
-JSON_CONTRACT = ROOT / "docs" / "api" / "openapi.json"
+YAML_CONTRACT = ROOT / "backend" / "contracts" / "openapi.yaml"
+JSON_CONTRACT = ROOT / "backend" / "contracts" / "openapi.json"
 
 
 def main() -> None:

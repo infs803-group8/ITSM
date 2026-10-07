@@ -1,61 +1,61 @@
-# D03 业务页面交接
+# D03 business-page handoff
 
-## 分支与边界
+## Branch and scope
 
-- 从已经合并 D02 / PR #50 的最新 main `01fad63` 创建 `feature/WBS-D03-ticket-workspace`。
-- main 已含资料页并发修复 `515723b`，不需要重复 cherry-pick。
-- 本轮只修改 `frontend/`，不修改后端、数据库、OpenAPI、依赖或锁文件。
-- 保持黄 / 黑 / 白桌面主题；没有增加手机专用布局。
-- 完成后保留本地修改供用户审核；本轮不自动提交、推送、创建 PR 或合并 main。
+- Created `feature/WBS-D03-ticket-workspace` from main `01fad63`, which already included D02 / PR #50.
+- Main already contained profile concurrency fix `515723b`; no additional cherry-pick was needed.
+- Implementation changes were limited to `frontend/`, without backend, database, OpenAPI, dependency or lockfile changes.
+- Retained the yellow/black/white desktop theme; added no mobile-specific layouts.
+- The initial work was left locally for user review, without automatic commit, push, PR creation or main merge.
 
-## 页面与功能
+## Pages and features
 
-| 入口 / 文件 | 本次完成 |
+| Route / file | Implementation |
 | --- | --- |
-| `/tickets` · `src/features/workspace/TicketListPage.tsx` | 角色范围内的工单 / Vendor 请求列表；搜索、状态、分类、优先级、SLA、管理员 assignee_id 筛选；排序、分页、空数据、失败重试 |
-| `/tickets/new` · `TicketForm.tsx` | USER 创建；标题 / 描述 / 分类 / 优先级；长度及空白校验；创建成功进入详情 |
-| `/tickets/:id` · `TicketDetailPage.tsx` | 描述、角色可见状态、负责人、SLA、等待原因与截止时间、方案、关闭信息、Vendor 请求；稳定读取 null；只读终态 |
-| 同一详情页 · `TicketForm.tsx` | EDIT 动作可见时编辑；仅提交改变的核心字段，不直接改状态、负责人、SLA |
-| 同一详情页 · `WorkflowPanel.tsx` | API-21–31：分配 / 改派、开始、请求补充、恢复、升级、请求 Vendor、Vendor 回复、提交方案、确认、重开、关闭；分页选择合格工程师及 Vendor |
-| 同一详情页 · `CommentsPanel.tsx` | 评论列表、分页、按 reference data 选择可见范围、评论提交；无普通 Vendor 评论入口；提醒评论不代替工作流操作 |
-| 同一详情页 · `AttachmentsPanel.tsx` | 附件列表 / 分页 / 按需下载；类型 / 大小校验、上传进度、确认失败重试；过期上传要求重新开始 |
-| 同一详情页 · Activity | API-32 角色范围内的事件时间线；系统事件、周期、时间、服务端返回的简单 metadata |
-| `/dashboard` · `DashboardPage.tsx` | Tier 1 / Tier 2 / Manager 的 scope、状态数量、SLA 风险和逾期、重开未分配数量；人工刷新 |
-| `/overdue` · `DashboardPage.tsx` | current/history 逾期视图、分类 / 优先级筛选、分页、详情链接 |
-| `src/app/router.tsx` / `components/layout/AppLayout.tsx` | 角色路由守卫、侧栏入口、当前页面标题；未登录保护沿用 D02 |
-| `src/styles/global.css` | 表格、表单、工作流操作区、风险标签、桌面看板；键盘 Skip link 保持可用 |
+| `/tickets` · `src/features/workspace/TicketListPage.tsx` | Role-scoped ticket / Vendor-request lists; search, status, category, priority, SLA and manager `assignee_id` filters; sorting, pagination, empty states and retry |
+| `/tickets/new` · `TicketForm.tsx` | USER creation with title, description, category and priority; length/whitespace validation; opens detail after creation |
+| `/tickets/:id` · `TicketDetailPage.tsx` | Description, role-visible status, assignee, SLA, waiting reason/deadline, resolution, closure and Vendor request; safe null handling and read-only terminal states |
+| Same detail page · `TicketForm.tsx` | Editing when EDIT is available; sends only changed core fields, without directly changing status, assignee or SLA |
+| Same detail page · `WorkflowPanel.tsx` | API-21–31: assign/reassign, start, request user information, resume, escalate, request Vendor, Vendor response, submit resolution, confirm, reopen and close; paginated eligible-engineer and Vendor selection |
+| Same detail page · `CommentsPanel.tsx` | Comment list/pagination, reference-data visibility selection and submission; no ordinary Vendor comment entry; reminder that comments do not replace workflow actions |
+| Same detail page · `AttachmentsPanel.tsx` | Attachment list/pagination, on-demand download, type/size checks, upload progress and confirmation retry; expired uploads must restart |
+| Same detail page · Activity | API-32 role-scoped event timeline, including system events, cycle, time and simple metadata returned by the server |
+| `/dashboard` · `DashboardPage.tsx` | Tier 1/Tier 2/Manager scope, status counts, SLA risk/overdue and reopened-unassigned counts; manual refresh |
+| `/overdue` · `DashboardPage.tsx` | Current/history overdue views, category/priority filters, pagination and detail links |
+| `src/app/router.tsx` / `components/layout/AppLayout.tsx` | Role guards, sidebar entries and current-page title; retains D02 login protection |
+| `src/styles/global.css` | Tables, forms, workflow controls, risk labels and desktop dashboard; keyboard Skip link remains usable |
 
-登录仍先进入个人资料，左侧可进入业务页面。没有增加合同之外的密码重置、角色管理、删除工单、删除附件或通知推送页面。
+Login still opens the profile page, with business pages available from the sidebar. No out-of-contract password-reset, role-management, ticket-deletion, attachment-deletion or push-notification pages were added.
 
-**历史未完成项（PR #51 R3 / Q03，现已由 D04 解决）：** D03 当时只有 API-27 提交、状态变化与事件显示。PR #53 后，D04 已通过 API-33 接入持久化请求/回复历史，见 [D04-HANDOFF.md](D04-HANDOFF.md)。
+**Historical gap, PR #51 R3 / Q03, resolved by D04:** D03 initially provided only API-27 submission, state changes and event display. After PR #53, D04 integrated persisted request/reply history through API-33. See [D04-HANDOFF.md](D04-HANDOFF.md).
 
-## 关键规则
+## Key rules
 
-1. UI 只按服务端 `available_actions` 展示工作流按钮；不在页面用状态推导权限。显示服务端 `display_status`，Vendor 不展示请求人、description、内部评论、负责人或 SLA。
-2. Tier 1 升级成功后直接离开详情并移除详情缓存；详情 403/404 返回列表和中性提示，不清空有效登录。详情查询离页不保留缓存。
-3. 409 冲突不自动重放写请求；工作流表单提示重新读取当前工单。422 保留填写内容；401 沿用 D02 清理会话和缓存。
-4. `shared.tsx` 的写入锁在异步等待前生效；写入前后只取消受影响工单、列表、汇总及工程师目录的读取，成功后失效并刷新；失败会恢复仍活跃的被取消读取。参考数据、Vendor 目录、其他工单不受影响。下载使用独立只读助手，保留锁/错误/卸载保护，不取消或失效查询。组件卸载后不接收迟到结果。
-5. 关闭操作有明确不可逆警告和必选确认框，发送 `acknowledge: true`。请求 Vendor 提示不得输入 User 姓名、邮箱、ID 等个人信息。
-6. `src/api/attachmentTransfer.ts` 使用独立 XHR：API-02 → 原始 PUT（原 signed headers，不加 API Bearer Token）→ API-03（仅 upload_id）。只有确认成功才显示完成。确认失败保留 session，不重复上传字节。
-7. 上传扩展名/MIME 映射取 API-12 的 reference data，并符合 API-02 合同的类型枚举。浏览器 MIME 为空时仅按该白名单补齐，校验与 presign 共用一次解析结果；显式不匹配仍拒绝。原始 PUT 始终使用返回的 signed headers。
-8. ASSIGN / ESCALATE / CLOSE 上限 1,000 字符；REOPEN 4,000；RESOLVE 5,000。HTML maxlength 与提交处理双层校验；关闭理由仍选填，重开理由拒绝纯空白。
+1. Workflow buttons use server-provided `available_actions`; the page does not infer authorization from status. It displays server-provided `display_status`. Vendor views hide requester, description, internal comments, assignee and SLA.
+2. Successful Tier 1 escalation immediately leaves detail and removes its cache. Detail 403/404 returns to the list with a neutral notice, preserving a valid login. Detail queries retain no cache after leaving the page.
+3. A 409 conflict never automatically replays a write; workflow forms request a fresh ticket read. A 422 preserves entered values. A 401 uses D02's session/cache cleanup.
+4. `shared.tsx` acquires the write lock before any asynchronous wait. Around writes, it cancels only affected ticket, list, summary and engineer-directory reads; success invalidates and refreshes those reads, while failure resumes cancelled reads that remain active. Reference data, Vendor directories and unrelated tickets are unaffected. Downloads use a separate read-only helper with lock/error/unmount protection and no query cancellation or invalidation. Unmounted components reject late results.
+5. Close requires an explicit irreversible-action warning and a required checkbox, sending `acknowledge: true`. Vendor requests warn against including User names, emails, IDs or other personal information.
+6. `src/api/attachmentTransfer.ts` uses a separate XHR: API-02 → raw PUT with original signed headers and no API Bearer token → API-03 with only `upload_id`. Completion appears only after confirmation succeeds. A failed confirmation retains the session and does not re-upload bytes.
+7. Upload extension/MIME mapping comes from API-12 reference data and follows API-02's type enum. An empty browser MIME is filled only from this allowlist. Validation and presign share the resolved result; explicit mismatches remain rejected. Raw PUT always uses the returned signed headers.
+8. ASSIGN / ESCALATE / CLOSE allow 1,000 characters; REOPEN 4,000; RESOLVE 5,000. Both HTML maxlength and submit handlers validate the limits. Close reasons remain optional; reopen reasons reject whitespace-only text.
 
-## Mock 与生成
+## Mocks and generation
 
-- `scripts/generate-api.mjs` 在 D03 时生成 32 个 operation；D04 随 API-33 更新为 33 个 operation 示例和验证 schema。`api:check` 同时校验生成文件。
-- 原 9 个基础 fixture、正式生成客户端、合同哈希和 OpenAPI 均未修改。
-- `src/mocks/workspaceHandlers.ts` / `workspaceModel.ts` / `state.ts` 提供多角色页面演示和状态流转；原 `handlers.ts` 扩展角色范围。
-- 开发登录页的 Demo role 可选择 USER / Tier 1 / Tier 2 / Vendor / Manager。此选项只填入测试账号，不是正式角色切换功能；生产应用不导入此入口。
-- 假账号：`user@example.com`、`tier1@example.com`、`tier2@example.com`、`vendor@example.com`、`manager@example.com`，统一假密码 `MockPass123!`。注册仍只创建 USER。
-- 刷新浏览器会清空内存 Token 和 Mock 数据。跨角色演示时请在页面内 Sign out 后换账号登录，不要刷新。
-- 示例包含请求人工单 5001、Vendor 协作工单 6001、逾期工单 6002。后两者不属于示例 USER，USER 不能查看。
-- Mock 下载跳到 `public/mock-download.txt`，明确显示占位说明；不会声称下载了原始上传文件。真实后端模式使用 API-05 返回的下载 URL。
+- `scripts/generate-api.mjs` generated 32 operations at D03. D04 added API-33, bringing examples and validation schemas to 33 operations. `api:check` verifies generated files too.
+- The original nine baseline fixtures, generated client, contract hash and OpenAPI were unchanged by D03.
+- `src/mocks/workspaceHandlers.ts`, `workspaceModel.ts` and `state.ts` provide multi-role demonstrations and state transitions; the original `handlers.ts` adds role coverage.
+- The development login's Demo role supports USER / Tier 1 / Tier 2 / Vendor / Manager. It only fills fake credentials; it does not switch roles in a live session. Production does not import this entry point.
+- Fake accounts: `user@example.com`, `tier1@example.com`, `tier2@example.com`, `vendor@example.com`, `manager@example.com`, all with fake password `MockPass123!`. Registration still creates USER only.
+- Refresh clears the in-memory token and Mock data. For demonstrations across roles, Sign out in the page and log in as another account without refreshing.
+- Examples include requester ticket 5001, Vendor collaboration ticket 6001 and overdue ticket 6002. The latter two do not belong to the example USER and cannot be viewed by that USER.
+- Mock downloads open `public/mock-download.txt`, explicitly identifying a placeholder rather than claiming to download the uploaded original. Real-backend mode uses API-05's download URL.
 
-Mock 不模拟 MySQL 事务锁、真正自动分配、定时 SLA Job、多组织历史 Vendor 权限、完整上传 session 过期 / 清理 / 完整性安全保证。这些仍由后端实现与测试，本轮不能代替真实服务验收。
+Mocks do not simulate MySQL transaction locks, real automatic assignment, scheduled SLA jobs, historical multi-organisation Vendor permissions or full upload-session expiry, cleanup and integrity guarantees. Those require backend implementation/tests; this work does not establish real-service acceptance.
 
-## 验证命令
+## Verification commands
 
-在 `ITSM/frontend` 运行：
+Run in `ITSM/frontend`:
 
 ```powershell
 npm run check
@@ -64,43 +64,43 @@ npm run test:auth:e2e
 npm run test:e2e
 ```
 
-- `check`：生成一致性、TypeScript、单元 / 组件测试、生产构建。
-- 原 API 浏览器回归：3 条；原账户页面回归：6 条。
-- D03 新业务浏览器回归：7 条，原 4 个 skip 占位已替换，另加 Manager 场景。页面测试运行 Chromium，1440×1000；工单列表 / 详情和原账户测试也含 1280×800。
-- 新接口测试通过生成 SDK → Axios → MSW，验证响应结构及权限 / 工作流；32 个新 fixture 对照仓库原合同，非手写 DTO。
-- 组件场景覆盖加载 / 空数据 / 503 重试 / request ID、null、Vendor 隐藏字段和不请求普通评论、401、403/404 清缓存跳离、409 冲突、422 保留评论、上传确认失败后不重复 PUT、写入锁 / 取消 / 卸载保护。
-- 本轮实际最终结果见下方“最终验证记录”；不将 Mock 测试等同于 Python / MySQL / AWS 验收。
+- `check`: generation consistency, TypeScript, unit/component tests and production build.
+- Existing API-browser regressions: three; account-page regressions: six.
+- D03 business-browser regressions: seven. The original four skipped placeholders were replaced and a Manager scenario added. Chromium runs at 1440×1000; ticket list/detail and original account tests also cover 1280×800.
+- New API tests exercise generated SDK → Axios → MSW, checking response shape, permissions and workflows. The 32 new fixtures are checked against the repository contract, not handwritten DTOs.
+- Component cases cover loading, empty data, 503 retry/request IDs, null, Vendor redaction and absence of ordinary-comment requests, 401, cache cleanup/navigation for 403/404, 409 conflicts, comment retention on 422, confirmation failure without duplicate PUT, and write-lock/cancellation/unmount protection.
+- Results below record the actual checks. Mock tests are not Python/MySQL/AWS acceptance.
 
-## 本地查看
+## Local preview
 
-1. 在本分支 `frontend` 内运行 `npm run dev`，保持终端运行。
-2. `.env` 使用 `VITE_USE_MOCKS=true`；已有文件不要覆盖。修改后重启开发服务。
-3. 打开终端地址（通常 `http://localhost:5173`），选择 Demo role → Use demo account → Sign in，再点左侧菜单。
-4. 用 USER 新建未分配工单；页面内退出并切换 Manager 分配；再切工程师处理；切回 USER 补充 / 确认。现有 5001 可直接测试 Tier 1 升级；6001 可直接测试 Vendor 回复。
-5. 接真后端时设置 `VITE_USE_MOCKS=false`，核对 API Base URL、CORS 和团队测试账号；不要将凭据放入代码或 VITE 变量。
+1. Run `npm run dev` inside this branch's `frontend` and keep the terminal running.
+2. Set `VITE_USE_MOCKS=true` in `.env`, preserving any existing settings. Restart the server after changes.
+3. Open the printed URL, usually `http://localhost:5173`. Choose Demo role → Use demo account → Sign in, then use the sidebar.
+4. Create an unassigned ticket as USER; sign out within the page, switch to Manager and assign it; switch to an engineer to process it, then back to USER to provide information/confirm. Ticket 5001 supports a Tier 1 escalation demonstration; 6001 supports a Vendor response.
+5. For the real backend, set `VITE_USE_MOCKS=false` and verify the API base URL, CORS and team test accounts. Do not put credentials in source or VITE variables.
 
-## 截图
+## Screenshots
 
-`docs/evidence/d03-*.png`：工单列表、创建、详情、工程师操作、Vendor 工作区、附件、管理看板、逾期列表。账户回归还更新了带业务侧栏 / 开发角色选择器的 D02 截图。
+`docs/evidence/d03-*.png` covers ticket list, creation, detail, engineer actions, Vendor workspace, attachments, management dashboard and overdue list. Account regressions also refreshed D02 screenshots with the business sidebar/development role selector.
 
-## 本轮之外的发布验收
+## Release acceptance outside this work
 
-- 真实 Python / MySQL / S3 联调（包含对象字节下载、过期链接、CORS 与多角色真实权限）。
-- Docker / Nginx / AWS 部署和公开 HTTPS 环境验收。
-- 后端定时任务、真实 SLA 时间边界、多 Vendor 历史权限及数据库并发不是本前端 Mock 的完成声明。
-- 最终用户手册、团队报告及人工 PR 审核仍需结合真实部署结果。
+- Real Python/MySQL/S3 integration, including downloaded object bytes, expired links, CORS and actual multi-role permissions.
+- Docker/Nginx/AWS deployment and public HTTPS acceptance.
+- Backend scheduled jobs, real SLA boundaries, historical multi-Vendor access and database concurrency are not covered by this frontend Mock completion claim.
+- Final user manual, team report and human PR review still require real deployment results.
 
-## 初始 D03 验证记录（修复前）
+## Initial D03 verification record, before review fixes
 
-PR #51 修复后的最新结果：`npm run check` 通过（129 项单元/组件测试）；API 浏览器 3 项、账号浏览器 6 项、业务浏览器 7 项全部通过。真实磁盘 `.log` 空 MIME 上传、下载不影响参考数据、文本长度边界已覆盖。修复先在本地验证，用户随后确认提交至现有 PR #51。逐项说明及 B/C 协调消息见 [PR51-REVIEW-FIXES.md](PR51-REVIEW-FIXES.md)。下面保留最初 D03 的历史记录。
+Latest results after the PR #51 fixes: `npm run check` passed with 129 unit/component tests; all three API-browser, six account-browser and seven business-browser tests passed. Coverage includes a real disk `.log` file with empty MIME, downloads leaving reference data unaffected and text-length boundaries. Fixes were first verified locally; the user then authorized submission to existing PR #51. See [PR51-REVIEW-FIXES.md](PR51-REVIEW-FIXES.md) for individual fixes and B/C coordination notes. The original D03 record follows.
 
-2026-09-28：
+2026-09-28:
 
-- `npm run check`：通过。生成文件一致，TypeScript 通过，**117 项单元 / 组件测试通过**，生产构建成功。
-- `npm run test:api:browser`：**3 项通过**。
-- `npm run test:auth:e2e`：**6 项通过**。
-- `npm run test:e2e`：**7 项通过**；无跳过的业务占位测试。
-- `git diff --check`：通过；修改范围仅 `frontend/`。
-- 生产 JavaScript 检查未包含假密码 `MockPass123!`、Tier 1 假账号、开发角色入口文案或 Mock Vendor 名称。
-- 桌面截图已生成并检查；没有部署或声称进行真实服务联调。
-- 构建保留一项非阻塞体积警告：主 JavaScript 约 **721 kB / gzip 233 kB**，延续 D02 的大包提示。没有提高阈值来隐藏它；后续可单独做按路由拆包。
+- `npm run check` passed: consistent generated files, TypeScript, **117 unit/component tests** and production build.
+- `npm run test:api:browser`: **three passed**.
+- `npm run test:auth:e2e`: **six passed**.
+- `npm run test:e2e`: **seven passed**, with no skipped business placeholders.
+- `git diff --check` passed; changes were confined to `frontend/`.
+- Production JavaScript contained no fake password `MockPass123!`, Tier 1 fake account, development role-entry text or Mock Vendor names.
+- Desktop screenshots were generated and inspected. No deployment or real-service integration was claimed.
+- The existing non-blocking bundle warning from D02 remained: main JavaScript about **721 kB / gzip 233 kB**. Its threshold was not raised; route-level splitting can be addressed separately.
