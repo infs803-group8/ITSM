@@ -1,6 +1,6 @@
 """Cross-domain read of a ticket's current ACTIVE vendor binding.
 
-C029.06: "给 A 读取当前 Active Binding 的安全内部接口" -- Member A's
+C029.06: "safe internal interface for A to read the current Active Binding" -- Member A's
 dashboard code (and any other future consumer) should read this through
 the ``ActiveVendorBinding`` shape below rather than querying
 ``vendor_requests`` directly, so it never needs to know that table's

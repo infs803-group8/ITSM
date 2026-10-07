@@ -27,7 +27,7 @@ def test_auth_request_models_reject_additional_fields_in_openapi():
 
 
 def test_login_access_token_is_a_readable_response_field():
-    contract_path = Path(__file__).resolve().parents[3] / "docs" / "api" / "openapi.yaml"
+    contract_path = Path(__file__).resolve().parents[3] / "backend" / "contracts" / "openapi.yaml"
     with contract_path.open(encoding="utf-8") as source:
         document = yaml.safe_load(source)
 

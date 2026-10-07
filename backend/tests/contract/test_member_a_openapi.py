@@ -18,7 +18,7 @@ EXPECTED = {
 
 
 def test_checked_in_openapi_contract_is_valid():
-    contract_path = Path(__file__).resolve().parents[3] / "docs" / "api" / "openapi.yaml"
+    contract_path = Path(__file__).resolve().parents[3] / "backend" / "contracts" / "openapi.yaml"
     with contract_path.open(encoding="utf-8") as source:
         validate(yaml.safe_load(source))
 

@@ -4,7 +4,7 @@ so it lives once here rather than being redefined per endpoint).
 
 state_machine.py's denial-code vocabulary (C016) was written to be
 self-consistent for its own pure-logic tests, and two of its strings do
-not literally match docs/api/openapi.yaml's ``ErrorCode`` enum:
+not literally match backend/contracts/openapi.yaml's ``ErrorCode`` enum:
 ``TARGET_ASSIGNEE_NOT_ELIGIBLE`` (public: ``ASSIGNEE_NOT_ELIGIBLE``) and
 ``VENDOR_REQUEST_ALREADY_ACTIVE`` (public: ``ACTIVE_VENDOR_REQUEST_EXISTS``).
 Rather than editing state_machine.py -- already the base of the whole C16

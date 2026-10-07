@@ -47,7 +47,7 @@ class TicketActionResponse(BaseModel):
 
 
 class RequestUserInfoRequest(BaseModel):
-    """docs/api/openapi.yaml: RequestUserInfoRequest (API-23)."""
+    """backend/contracts/openapi.yaml: RequestUserInfoRequest (API-23)."""
 
     message: str = Field(min_length=1, max_length=4000)
 
@@ -55,7 +55,7 @@ class RequestUserInfoRequest(BaseModel):
 
 
 class ResumeRequest(BaseModel):
-    """docs/api/openapi.yaml: ResumeRequest (API-24). Covers both Resume
+    """backend/contracts/openapi.yaml: ResumeRequest (API-24). Covers both Resume
     (from INFORMATION_REQUIRED) and Issue Persists (from
     RESOLUTION_CONFIRMATION) -- one request shape for the one endpoint,
     same as ``state_machine.WorkflowAction.USER_RESUME``.
@@ -67,7 +67,7 @@ class ResumeRequest(BaseModel):
 
 
 class EscalateRequest(BaseModel):
-    """docs/api/openapi.yaml: EscalateRequest (API-25)."""
+    """backend/contracts/openapi.yaml: EscalateRequest (API-25)."""
 
     tier2_assignee_id: int
     reason: str | None = Field(default=None, min_length=1, max_length=1000)
@@ -76,7 +76,7 @@ class EscalateRequest(BaseModel):
 
 
 class ResolveRequest(BaseModel):
-    """docs/api/openapi.yaml: ResolveRequest (API-28)."""
+    """backend/contracts/openapi.yaml: ResolveRequest (API-28)."""
 
     resolution_summary: str = Field(min_length=1, max_length=5000)
 
@@ -84,7 +84,7 @@ class ResolveRequest(BaseModel):
 
 
 class ReopenRequest(BaseModel):
-    """docs/api/openapi.yaml: ReopenRequest (API-30)."""
+    """backend/contracts/openapi.yaml: ReopenRequest (API-30)."""
 
     reason: str = Field(min_length=1, max_length=4000)
 
@@ -92,7 +92,7 @@ class ReopenRequest(BaseModel):
 
 
 class CloseRequest(BaseModel):
-    """docs/api/openapi.yaml: CloseRequest (API-31). ``acknowledge`` is
+    """backend/contracts/openapi.yaml: CloseRequest (API-31). ``acknowledge`` is
     typed ``Literal[True]`` rather than ``bool`` -- pydantic then rejects
     ``false`` (or any non-bool) at validation time on its own, matching
     the schema's own ``"const": true``, with no extra check needed here.
@@ -105,7 +105,7 @@ class CloseRequest(BaseModel):
 
 
 class AssignmentRequest(BaseModel):
-    """docs/api/openapi.yaml: AssignmentRequest (API-21)."""
+    """backend/contracts/openapi.yaml: AssignmentRequest (API-21)."""
 
     assignee_id: int
     reason: str | None = Field(default=None, min_length=1, max_length=1000)

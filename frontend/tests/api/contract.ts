@@ -5,7 +5,7 @@ import addFormats from "ajv-formats";
 import YAML from "yaml";
 
 // Tests read the original team contract, not the generated Mock schema snapshot.
-export const contract = YAML.parse(readFileSync(fileURLToPath(new URL("../../../docs/api/openapi.yaml", import.meta.url)), "utf8"));
+export const contract = YAML.parse(readFileSync(fileURLToPath(new URL("../../../backend/contracts/openapi.yaml", import.meta.url)), "utf8"));
 export const ajv = new Ajv2020({ strict: false, allErrors: true });
 addFormats(ajv);
 ajv.addFormat("int64", { type: "number", validate: Number.isSafeInteger });

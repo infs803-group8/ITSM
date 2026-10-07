@@ -1,6 +1,6 @@
 """Write-path workflow action routes (C025 onward).
 
-Implemented exactly as docs/api/openapi.yaml specifies per operation.
+Implemented exactly as backend/contracts/openapi.yaml specifies per operation.
 """
 
 from typing import Annotated
@@ -71,7 +71,7 @@ def build_ticket_action_response(
 
     ``vendor_request`` (top-level, on ``TicketActionData``) was previously
     hardcoded to ``None`` for every action. Comparing API26Success/
-    API27Success against API28-31Success in docs/api/openapi.yaml shows
+    API27Success against API28-31Success in backend/contracts/openapi.yaml shows
     this field should always MIRROR the freshly-assembled
     ``TicketDetail.vendor_request`` -- not stay permanently unset -- so
     C029 fixes that here rather than repeating the old bug in a new

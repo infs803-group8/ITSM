@@ -3,8 +3,7 @@
 The reviewed SQL schema remains authoritative during v6.0. Each domain
 owner adds their own model import below (additive only -- do not remove
 another owner's import without checking with them first, per
-.github/CODEOWNERS and docs/development/git-workflow.md's shared-hotspot
-rule).
+the shared-file ownership rules in .github/CODEOWNERS).
 """
 
 from app.domains.audit.model import TicketEvent

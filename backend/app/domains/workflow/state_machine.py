@@ -20,7 +20,7 @@ starting state an actor can act on afterwards.
 SLA status (``SlaStatus``: ON_TRACK/AT_RISK/OVERDUE/PAUSED/MET) is
 tracked on the ticket alongside, but deliberately kept out of
 ``TicketStatus`` (core.enums) -- see baseline §4.2 ("AT_RISK/OVERDUE
-是 SLA 状态，不是生命周期状态") and C016.03.
+are SLA states, not lifecycle states") and C016.03.
 """
 
 from dataclasses import dataclass

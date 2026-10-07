@@ -1,6 +1,6 @@
 # Frontend
 
-React + TypeScript + Vite application owned by member D. The source of truth for HTTP requests and responses is `docs/api/openapi.yaml`.
+React + TypeScript + Vite application owned by member D. The source of truth for HTTP requests and responses is `backend/contracts/openapi.yaml`.
 
 ## Local development
 
@@ -68,11 +68,11 @@ npm run api:generate
 npm run api:check
 ```
 
-- Input: `../docs/api/openapi.yaml` (read-only; do not edit it to make the frontend pass).
+- Input: `../backend/contracts/openapi.yaml` (read-only; do not edit it to make the frontend pass).
 - Output: `src/api/generated/` (all 33 operation functions, types, bundled Axios runtime, contract hash), `src/mocks/fixtures.generated.json` (unchanged nine baseline examples) and `src/mocks/workspace-fixtures.generated.json` (all 33 canonical examples and schemas). Both fixture files are generated, never hand-edited.
 - Commit the generated source and `public/mockServiceWorker.js`. Do not edit generated files manually. `api:generate` replaces stale generated files; `api:check` regenerates into a temporary directory and checks differences without changing the working files.
 - Line endings are normalized for Windows/Linux reproducibility. The contract-hash test detects source changes whenever the unit suite runs. Full generated-file drift is checked by `npm run api:check`.
-- Run generation from the full repository. The production Docker build uses the committed generated files; it does not need the parent `docs` directory in its frontend-only build context.
+- Run generation from the full repository. The production Docker build uses the committed generated files; it does not need `backend/contracts` in its frontend-only build context.
 
 **Resolved contract annotation:** main removed the incorrect `writeOnly` flag from `LoginData.access_token`. The old `readWrite: false` workaround has been removed; generation now uses the default read/write handling. The response token remains required. Passwords legitimately remain write-only, so the generated SDK uses `RegisterRequestWritable` and `LoginRequestWritable` for request bodies. `src/api/types.ts` exposes convenient `RegisterRequest` and `LoginRequest` aliases derived directly from the generated operations' `body` types; import those aliases for forms and authentication rather than the read-view names in `types.gen.ts`. Contract, type and request tests protect both token and password fields.
 

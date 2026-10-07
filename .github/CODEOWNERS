@@ -33,11 +33,11 @@
 /backend/app/domains/vendor_workflow/ @andywen-aut
 /backend/app/domains/audit/           @andywen-aut
 /backend/app/domains/sla/             @andywen-aut
-/docs/project-management/             @andywen-aut
 
 # Member D — React frontend and frontend tests.
 /frontend/                            @Yiguang-Sun
 
 # Contracts consumed by the whole team.
-/docs/api/                            @BIN-LIN-AUT2026 @Nicole-Gao2026 @andywen-aut @Yiguang-Sun
-/docs/database/                       @BIN-LIN-AUT2026 @Nicole-Gao2026 @andywen-aut
+/backend/contracts/                  @BIN-LIN-AUT2026 @Nicole-Gao2026 @andywen-aut @Yiguang-Sun
+/docs/                               @BIN-LIN-AUT2026 @Nicole-Gao2026 @andywen-aut @Yiguang-Sun
+/docs/IT-Service-Desk-Database-Final-Design-v1.1.md @BIN-LIN-AUT2026 @Nicole-Gao2026 @andywen-aut

@@ -62,7 +62,8 @@ def test_other_close_validation_errors_are_not_reclassified():
     ``reason`` too long) must NOT be swallowed into
     CLOSE_ACKNOWLEDGEMENT_REQUIRED -- only errors actually on
     ``acknowledge`` trigger the specific code (C034.02's own wording:
-    "其他结构错误用既定 Validation Error，不把所有 422 都映射成关闭确认错误")."""
+    "Other structural errors use the established Validation Error; do not map
+    every 422 response to a close-acknowledgement error")."""
     error = {
         "type": "string_too_long",
         "loc": ("body", "reason"),

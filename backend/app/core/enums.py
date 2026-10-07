@@ -92,7 +92,7 @@ class AvailableAction(StrEnum):
 
 
 class EventScope(StrEnum):
-    """Audit-event scope (docs/api/openapi.yaml: EventScope)."""
+    """Audit-event scope (backend/contracts/openapi.yaml: EventScope)."""
 
     USER_VISIBLE = "USER_VISIBLE"
     INTERNAL_ONLY = "INTERNAL_ONLY"
@@ -100,7 +100,7 @@ class EventScope(StrEnum):
 
 
 class EventType(StrEnum):
-    """Stable audit event type (docs/api/openapi.yaml: EventType).
+    """Stable audit event type (backend/contracts/openapi.yaml: EventType).
 
     Matches the 24-value chk_ticket_events_type CHECK constraint in
     backend/database/schema.sql exactly -- keep both in sync.

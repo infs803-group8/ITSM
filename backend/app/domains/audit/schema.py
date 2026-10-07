@@ -1,4 +1,4 @@
-"""Pydantic contract for API-32 (docs/api/openapi.yaml: /tickets/{id}/events).
+"""Pydantic contract for API-32 (backend/contracts/openapi.yaml: /tickets/{id}/events).
 
 Field shapes are copied 1:1 from the OpenAPI ``ActorSummary``,
 ``TicketEvent`` and ``EventListResponse`` schemas.

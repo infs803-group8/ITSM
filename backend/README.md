@@ -1,6 +1,6 @@
 # Backend
 
-FastAPI service owned by members A, B, and C. Implement the approved contract in `docs/api/openapi.yaml`.
+FastAPI service owned by members A, B, and C. Implement the approved contract in `backend/contracts/openapi.yaml`.
 
 ```powershell
 py -3.12 -m venv .venv

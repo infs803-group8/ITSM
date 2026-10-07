@@ -1,5 +1,5 @@
 {
-  "source": "docs/api/openapi.yaml",
+  "source": "backend/contracts/openapi.yaml",
   "version": "1.1.0",
   "sha256": "3eac2f5080fbc44ba7ad3384bd51d903cdee84029bba9b6a1a6ff5734d1fdb19",
   "operations": 33

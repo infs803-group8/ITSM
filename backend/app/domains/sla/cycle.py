@@ -46,7 +46,7 @@ def start_cycle(*, cycle_no: int, started_at: datetime, config: SlaConfig) -> Cy
 
 
 def first_cycle(*, started_at: datetime, config: SlaConfig) -> CycleWindow:
-    """Initial assignment: cycle_no = 1 (baseline §4.2 "首次 Cycle=1")."""
+    """Initial assignment: cycle_no = 1 (baseline §4.2 "the first cycle is 1")."""
     return start_cycle(cycle_no=1, started_at=started_at, config=config)
 
 

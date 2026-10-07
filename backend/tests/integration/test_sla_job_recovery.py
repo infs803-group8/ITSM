@@ -15,7 +15,7 @@ Scope actually covered here, against every unit test in this stack's own
 disclosure that sqlalchemy/pytest/fastapi are all absent from the sandbox
 this was written in (no network egress to install them either): NONE of
 this file has been executed. It is written to the shape C037's own
-checklist and "验证范围" describe (T-JOB-03/04/05), for Andy to run against
+checklist and "verification scope" describe (T-JOB-03/04/05), for Andy to run against
 his own local MySQL once this stack is pulled somewhere with a database.
 
 What is deliberately NOT attempted here, and left to Andy/the team:

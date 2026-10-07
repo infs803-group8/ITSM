@@ -21,8 +21,8 @@ the comments/attachments domains respectively). Whoever assembles the final
 merging is not this module's job, and doing it here would silently hide a
 missing contribution from one of those domains behind an empty list.
 
-The role-aware field rules are recorded in docs/project-management/
-decision-log.md Q02/Q06 and called out here at the serialization boundary:
+The original Q02/Q06 decisions define the role-aware field rules
+summarized here at the serialization boundary:
 
 * Q02 (Vendor field leakage): Vendor gets ``description``/``requester``/
   ``assignee``/``sla``/``pending_user``/``resolution``/``closure`` = null.

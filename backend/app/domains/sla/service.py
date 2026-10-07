@@ -13,8 +13,8 @@ Never commits. Historical cycles are never overwritten: each call issues
 one more (append-only) TicketEvent via ``AuditService.append_event``
 before/alongside updating the current-state columns on ``tickets``, so
 the old SLA_OVERDUE/SLA_MET events for prior cycles remain queryable even
-after the current cycle moves on (baseline §4.2's "历史 Cycle...只追加到
-TicketEvent；新 Cycle 不覆盖历史").
+after the current cycle moves on (baseline §4.2's "historical cycles are appended to
+TicketEvent; a new cycle never overwrites history").
 """
 
 from dataclasses import dataclass

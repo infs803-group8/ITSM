@@ -1,6 +1,6 @@
 """auth API routes.
 
-Implement operations exactly from docs/api/openapi.yaml.
+Implement operations exactly from backend/contracts/openapi.yaml.
 """
 
 from typing import Annotated
